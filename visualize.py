@@ -151,7 +151,7 @@ def evaluate():
 	"""
 	# create a smaller version of the embedding files where vocabulary = only words that have some ELMo vector
 	# vocabulary needs to be the same across all embeddings for apples-to-apples comparison
-	words = set([ w.lower() for w in json.load(open('elmo/word2sent.json')).keys() ])
+	words = set([ w.lower() for w in json.load(open('bert/word2sent.json')).keys() ])
 
 	# paths to GloVe and FastText word vectors
 	# http://nlp.stanford.edu/data/glove.42B.300d.zip
@@ -179,14 +179,17 @@ def evaluate():
 	# where to put the smaller embedding files
 	trimmed_embedding_path = "./contextual_embeddings/trimmed/"
 
+	num_found = 0
 	for path in tqdm(vector_paths):
 		name = path.split('/')[-1]
 
 		with open(os.path.join(trimmed_embedding_path, name), 'w') as f_out:
 			for line in open(path):
 				if line.split()[0].lower() in words:
+					num_found = num_found + 1
 					f_out.write(line.strip() + '\n')
 
+	print("vocabulary found {} words".format(num_found))
 	results = []
 	# run the word_embedding_benchmarks code on the trimmed word vector files
 	for fn in tqdm(os.listdir(trimmed_embedding_path)):
@@ -214,4 +217,6 @@ def evaluate():
 visualize_embedding_space();
 visualize_self_similarity();
 visualize_variance_explained();
-evaluate();
+results = evaluate();
+print(results);
+results.to_csv("results.csv", sep='\t')

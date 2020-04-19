@@ -106,10 +106,14 @@ def variance_explained_by_pc(
 				in word2sent_indexer[word] if f[str(sent_index)][layer, word_index].shape != () ]
 
 			pca = PCA(n_components=1)
-			pca.fit(embeddings)
-			
-			variance_explained[f'layer_{layer}'] = min(1.0, round(pca.explained_variance_ratio_[0], 3))
-			pc_vector_files[layer].write(' '.join([word] + list(map(str, pca.components_[0]))) + '\n')
+
+			if all(x == embeddings[0] for x in embeddings):
+				print("word: {}, layer: {} -- All elements in list are equal, skipping".format(word, layer))
+			else:
+				pca.fit(embeddings)
+
+				variance_explained[f'layer_{layer}'] = min(1.0, round(pca.explained_variance_ratio_[0], 3))
+				pc_vector_files[layer].write(' '.join([word] + list(map(str, pca.components_[0]))) + '\n')
 
 		writer.writerow(variance_explained)
 
@@ -165,8 +169,14 @@ def explore_embedding_space(
 			sentence_vector = f[str(sent_index)][layer].mean(axis=0)
 			num_words = f[str(sent_index)].shape[1]
 
+			cur_selection = f[str(sent_index)][layer, random.choice(list(range(num_words)))]
+			if len(cur_selection.shape) == 0:
+				# this is a bug where you can get a number instead of an array
+				print("found degenerate selection {}, skipping".format(cur_selection))
+				continue
+
 			# randomly add a word vector (not all of them, because that would bias towards longer sentences)
-			word_vectors.append(f[str(sent_index)][layer, random.choice(list(range(num_words)))])
+			word_vectors.append(cur_selection)
 
 			# what is the mean cosine similarity between the sentence and its words?
 			mean_cos_sim = np.nanmean([ 1 - cosine(f[str(sent_index)][layer,i], sentence_vector) 
@@ -202,6 +212,7 @@ if __name__ == "__main__":
 
 	#for model in ["elmo", "bert", "gpt2"]:
 	for model in ["bert", "gpt2"]:
+	# for model in ["gpt2"]:
 		print(f"Analyzing {model} ...")
 
 		word2sent_indexer = json.load(open(f'{model}/word2sent.json', 'r'))
