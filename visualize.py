@@ -193,14 +193,19 @@ def evaluate():
 		pth = os.path.join(trimmed_embedding_path, fn)
 		
 		load_kwargs = {}
-		load_kwargs['vocab_size'] = sum(1 for line in open(pth))
-		load_kwargs['dim'] = len(next(open(pth)).split()) - 1
+		file_length = sum(1 for line in open(pth))
+		if file_length > 0:
+			print("running benchmark on trimmed vector file {}, {}".format(fn, file_length))
+			load_kwargs['vocab_size'] = file_length
+			load_kwargs['dim'] = len(next(open(pth)).split()) - 1
 
-		embeddings = load_embedding(pth, format='glove', normalize=True, lower=True, 
-			clean_words=False, load_kwargs=load_kwargs)
-		df = evaluate_on_all(embeddings)
-		df['Model'] = fn
-		results.append(df)
+			embeddings = load_embedding(pth, format='glove', normalize=True, lower=True, 
+				clean_words=False, load_kwargs=load_kwargs)
+			df = evaluate_on_all(embeddings)
+			df['Model'] = fn
+			results.append(df)
+		else:
+			print("skipping empty file {}".format(pth))
 
 	results = pd.concat(results).set_index('Model')
 	return results

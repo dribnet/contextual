@@ -601,9 +601,23 @@ def _fetch_file(url, data_dir=TEMP, uncompress=False, move=False,md5sum=None,
         local_file = None
         initial_size = 0
 
+        # https://stackoverflow.com/a/28048260
+        do_ssh_hack = False
+        if os.environ.get('SSH_HACK') is not None:
+            import ssl
+            do_ssh_hack = True
+
+            ctx = ssl.create_default_context()
+            ctx.check_hostname = False
+            ctx.verify_mode = ssl.CERT_NONE
+
         try:
             # Download data
-            url_opener = _urllib.request.build_opener(*handlers)
+            # https://stackoverflow.com/a/35799458
+            if do_ssh_hack:
+                url_opener = _urllib.request.build_opener(_urllib.request.HTTPSHandler(context=ctx), *handlers)
+            else:
+                url_opener = _urllib.request.build_opener(*handlers)
             request = _urllib.request.Request(url)
             request.add_header('Connection', 'Keep-Alive')
             if username is not None and password is not None:
@@ -621,6 +635,7 @@ def _fetch_file(url, data_dir=TEMP, uncompress=False, move=False,md5sum=None,
             if verbose > 0:
                 displayed_url = url.split('?')[0] if verbose == 1 else url
                 print('Downloading data from %s ...' % displayed_url)
+
             if resume and os.path.exists(temp_full_name):
                 # Download has been interrupted, we try to resume it.
                 local_file_size = os.path.getsize(temp_full_name)
