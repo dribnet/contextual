@@ -12,6 +12,7 @@ from scipy.stats import spearmanr
 from sklearn.decomposition import PCA
 import tqdm
 from sklearn.decomposition import TruncatedSVD
+import argparse
 
 
 def calculate_word_similarity_across_sentences(
@@ -205,11 +206,10 @@ def explore_embedding_space(
 		'variance explained for random words' : variance_explained_random
 		}, open(out_fn, 'w'), indent=1)
 
+# where the contextualized embeddings are saved (in HDF5 format)
+EMBEDDINGS_PATH = "./contextual_embeddings"
 
-if __name__ == "__main__":
-	# where the contextualized embeddings are saved (in HDF5 format)
-	EMBEDDINGS_PATH = "./contextual_embeddings"
-
+if __name__ == "__old_main__":
 	#for model in ["elmo", "bert", "gpt2"]:
 	for model in ["bert", "gpt2"]:
 	# for model in ["gpt2"]:
@@ -231,3 +231,44 @@ if __name__ == "__main__":
 		explore_embedding_space(EMBEDDINGS_FULL_PATH, f'{model}/embedding_space_stats.json')
 
 	
+def main():
+    parser = argparse.ArgumentParser(description="pre process csv data file into hdf5")
+    parser.add_argument('--suffix', default=None,
+                         help='common suffix to all data files')
+    parser.add_argument('--models', default="bert,gpt2",
+                         help='comma separated list of models to process')
+    parser.add_argument('--processes', default="similarity,variance,embedding",
+                         help='comma separated list of what to process')
+    args = parser.parse_args()
+
+    models_to_process = args.models.split(",")
+    processes_to_run = args.processes.split(",")
+
+    file_suffix = ""
+    if args.suffix is not None:
+        file_suffix = "_{}".format(args.suffix)
+
+    for model in models_to_process:
+        print(f"Analyzing {model} ...")
+
+        word2sent_indexer = json.load(open(f'{model}/word2sent{file_suffix}.json', 'r'))
+        EMBEDDINGS_FULL_PATH = os.path.join(EMBEDDINGS_PATH, f'{model}{file_suffix}.hdf5')
+
+        if "similarity" in processes_to_run:
+            print(f"Analyzing word similarity across sentences ...")
+            calculate_word_similarity_across_sentences(EMBEDDINGS_FULL_PATH, word2sent_indexer,
+                f'{model}/self_similarity{file_suffix}.csv')
+
+        if "variance" in processes_to_run:
+            print(f"Analyzing variance explained by first principal component ...")
+            variance_explained_by_pc(EMBEDDINGS_FULL_PATH, word2sent_indexer,
+                f'{model}/variance_explained{file_suffix}.csv',
+                os.path.join(EMBEDDINGS_PATH, f'pcs/{model}{file_suffix}.pc.'))
+
+        if "embedding" in processes_to_run:
+            print(f"Exploring embedding space ...")
+            explore_embedding_space(EMBEDDINGS_FULL_PATH,
+                f'{model}/embedding_space_stats{file_suffix}.json')
+
+if __name__ == '__main__':
+    main()

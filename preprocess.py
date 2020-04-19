@@ -4,6 +4,7 @@ import json
 import spacy
 from spacy.lang.en import English
 from typing import Dict, Tuple, Sequence, List, Callable
+import argparse
 
 nlp = spacy.load("en_core_web_sm")
 spacy_tokenizer = English().Defaults.create_tokenizer(nlp)
@@ -210,10 +211,10 @@ def index_sentence(data_fn: str, index_fn: str, tokenize: Callable[[str], List[s
 	return sentences
 
 
-if __name__ == "__main__":
-	# where to save the contextualized embeddings
-	EMBEDDINGS_PATH = "./contextual_embeddings"
+# where to save the contextualized embeddings
+EMBEDDINGS_PATH = "./contextual_embeddings"
 
+if __name__ == "__old_main__":
 	# sts.csv has been preprocessed to remove all quotes of type ", since they are often not completed
 	# elmo = ELMo()
 	# sentences = index_sentence('sts.csv', 'elmo/word2sent.json', lambda s: list(map(str, spacy_tokenizer(s))))
@@ -227,6 +228,38 @@ if __name__ == "__main__":
 	sentences = index_sentence('sts.csv', 'gpt2/word2sent.json', lambda s: list(map(str, spacy_tokenizer(s))))
 	gpt2.make_hdf5_file(sentences, os.path.join(EMBEDDINGS_PATH, 'gpt2.hdf5'))
 
+def main():
+    parser = argparse.ArgumentParser(description="pre process csv data file into hdf5")
+    parser.add_argument('--suffix', default=None,
+                         help='common suffix to all data files')
+    parser.add_argument('--models', default="bert,gpt2",
+                         help='comma separated list of models to process')
+    args = parser.parse_args()
 
-			
+    models_to_process = args.models.split(",")
 
+    file_suffix = ""
+    if args.suffix is not None:
+        file_suffix = "_{}".format(args.suffix)
+
+    input_file = "sts{}.csv".format(file_suffix)
+
+    if "bert" in models_to_process:
+        bert_index_file = 'bert/word2sent{}.json'.format(file_suffix)
+        bert_data_file = os.path.join(EMBEDDINGS_PATH, 'bert{}.hdf5'.format(file_suffix))
+
+        bert = BertBaseCased()
+        sentences = index_sentence(input_file, bert_index_file, bert.tokenizer.tokenize)
+        bert.make_hdf5_file(sentences, bert_data_file)
+
+
+    if "gpt2" in models_to_process:
+        gpt2_index_file = 'gpt2/word2sent{}.json'.format(file_suffix)
+        gpt2_data_file = os.path.join(EMBEDDINGS_PATH, 'gpt2{}.hdf5'.format(file_suffix))
+
+        gpt2 = GPT2()
+        sentences = index_sentence(input_file, gpt2_index_file, lambda s: list(map(str, spacy_tokenizer(s))))
+        gpt2.make_hdf5_file(sentences, gpt2_data_file)
+
+if __name__ == '__main__':
+    main()
