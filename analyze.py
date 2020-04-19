@@ -7,9 +7,11 @@ import itertools
 import csv
 from typing import Dict, Tuple, Sequence, List
 from scipy.spatial.distance import cosine
-from allennlp.common.tqdm import Tqdm
+#from allennlp.common.tqdm import Tqdm
 from scipy.stats import spearmanr
 from sklearn.decomposition import PCA
+import tqdm
+from sklearn.decomposition import TruncatedSVD
 
 
 def calculate_word_similarity_across_sentences(
@@ -33,7 +35,7 @@ def calculate_word_similarity_across_sentences(
 	writer = csv.DictWriter(open(out_fn, 'w'), fieldnames=fieldnames)
 	writer.writeheader()
 
-	for word in Tqdm.tqdm(word2sent_indexer):
+	for word in tqdm.tqdm(word2sent_indexer):
 		similarity_by_layer = { 'word' : word }
 
 		# list of tuples (sentence index, index of word in sentence) for word occurrences
@@ -62,6 +64,7 @@ def calculate_word_similarity_across_sentences(
 
 			mean_layer_similarity = round(np.nanmean(layer_similarities), 3)
 			similarity_by_layer[f'layer_{layer}'] = mean_layer_similarity
+			#similarity_by_layer[f'layer_{layer}'] = mean_layer_similarity
 
 		writer.writerow(similarity_by_layer)
 
@@ -94,7 +97,7 @@ def variance_explained_by_pc(
 	# files to write the principal components to 
 	pc_vector_files = { layer: open(pc_fn + str(layer), 'w') for layer in range(1, num_layers) }
 
-	for word in Tqdm.tqdm(word2sent_indexer):
+	for word in tqdm.tqdm(word2sent_indexer):
 		variance_explained = { 'word' : word }
 
 		# calculate variance explained by the first principal component
@@ -139,7 +142,11 @@ def explore_embedding_space(
 	num_layers = f["0"].shape[0]
 	num_sentences = len(f)
 
-	sentence_indices = random.sample(list(range(num_sentences)), num_samples)
+	print("about to sample {}, {}".format(num_sentences,num_samples))
+	if(num_sentences > num_samples):
+		sentence_indices = random.sample(list(range(num_sentences)), num_samples)
+	else:
+		sentence_indices = [random.randrange(num_sentences) for _ in range(num_samples)]
 
 	mean_cos_sim_between_sent_and_words = { f'layer_{layer}' : [] for layer in range(num_layers) }
 	mean_cos_sim_across_words = { f'layer_{layer}' : -1 for layer in range(num_layers) }
@@ -147,7 +154,7 @@ def explore_embedding_space(
 	word_norm_mean = { f'layer_{layer}' : -1 for layer in range(num_layers) }
 	variance_explained_random = { f'layer_{layer}' : -1 for layer in range(num_layers) }
 
-	for layer in Tqdm.tqdm(range(num_layers)):
+	for layer in tqdm.tqdm(range(num_layers)):
 		word_vectors = []
 		word_norms = []
 		mean_cos_sims = []
@@ -191,13 +198,14 @@ def explore_embedding_space(
 
 if __name__ == "__main__":
 	# where the contextualized embeddings are saved (in HDF5 format)
-	EMBEDDINGS_PATH = "~/contextual_embeddings"
+	EMBEDDINGS_PATH = "./contextual_embeddings"
 
-	for model in ["elmo", "bert", "gpt2"]:
+	#for model in ["elmo", "bert", "gpt2"]:
+	for model in ["bert", "gpt2"]:
 		print(f"Analyzing {model} ...")
 
 		word2sent_indexer = json.load(open(f'{model}/word2sent.json', 'r'))
-		scores = json.load(open(f'{model}/scores.json', 'r'))
+		#scores = json.load(open(f'{model}/scores.json', 'r'))
 		EMBEDDINGS_FULL_PATH = os.path.join(EMBEDDINGS_PATH, f'{model}.hdf5')
 
 		print(f"Analyzing word similarity across sentences ...")

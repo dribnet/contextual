@@ -17,7 +17,8 @@ def visualize_embedding_space():
 	plt.figure(figsize=(12,4))
 	icons = [ 'ro:', 'bo:', 'go:']
 
-	for i, (model, num_layers) in enumerate([('ELMo', 3), ('BERT', 13), ('GPT2', 13)]):
+	#for i, (model, num_layers) in enumerate([('ELMo', 3), ('BERT', 13), ('GPT2', 13)]):
+	for i, (model, num_layers) in enumerate([('bert', 13), ('gpt2', 13)]):
 		x = np.array(range(num_layers))
 		data = json.load(open(f'{model.lower()}/embedding_space_stats.json'))
 		plt.plot(x, [ data["mean cosine similarity across words"][f'layer_{i}'] for i in x ], icons[i], markersize=6, label=model, linewidth=2.5, alpha=0.65)
@@ -38,7 +39,8 @@ def visualize_embedding_space():
 	plt.figure(figsize=(12,4))
 	icons = [ 'ro:', 'bo:', 'go:']
 
-	for i, (model, num_layers) in enumerate([('ELMo', 3), ('BERT', 13), ('GPT2', 13)]):
+	#for i, (model, num_layers) in enumerate([('ELMo', 3), ('BERT', 13), ('GPT2', 13)]):
+	for i, (model, num_layers) in enumerate([('bert', 13), ('gpt2', 13)]):
 		x = np.array(range(num_layers))
 		data = json.load(open(f'{model.lower()}/embedding_space_stats.json'))
 		y1 = np.array([ data["mean cosine similarity between sentence and words"][f'layer_{i}'] for i in x ])
@@ -61,7 +63,8 @@ def visualize_self_similarity():
 	icons = [ 'ro:', 'bo:', 'go:']
 
 	# plot the mean self-similarity but adjust by subtracting the avg similarity between random pairs of words
-	for i, (model, num_layers) in enumerate([('ELMo', 3), ('BERT', 13), ('GPT2', 13)]):
+	#for i, (model, num_layers) in enumerate([('ELMo', 3), ('BERT', 13), ('GPT2', 13)]):
+	for i, (model, num_layers) in enumerate([('bert', 13), ('gpt2', 13)]):
 		embedding_stats = json.load(open(f'{model.lower()}/embedding_space_stats.json'))
 		self_similarity = pd.read_csv(f'{model}/self_similarity.csv')
 
@@ -84,7 +87,8 @@ def visualize_self_similarity():
 	least_self_similar = []
 	models = []
 
-	for i, (model, num_layers) in enumerate([('ELMo', 3), ('BERT', 13), ('GPT2', 13)]):
+	#for i, (model, num_layers) in enumerate([('ELMo', 3), ('BERT', 13), ('GPT2', 13)]):
+	for i, (model, num_layers) in enumerate([('bert', 13), ('gpt2', 13)]):
 		self_similarity = pd.read_csv(f'{model}/self_similarity.csv')
 		self_similarity['avg'] = self_similarity.mean(axis=1)
 
@@ -107,7 +111,8 @@ def visualize_variance_explained():
 
 	# plot the mean variance explained by first PC for occurrences of the same word in different sentences
 	# adjust the values by subtracting the variance explained for random sentence vectors
-	for i, (model, num_layers) in enumerate([('ELMo', 3), ('BERT', 13), ('GPT2', 13)]):
+	#for i, (model, num_layers) in enumerate([('ELMo', 3), ('BERT', 13), ('GPT2', 13)]):
+	for i, (model, num_layers) in enumerate([('bert', 13), ('gpt2', 13)]):
 		embedding_stats = json.load(open(f'{model.lower()}/embedding_space_stats.json'))
 		data = pd.read_csv(f'{model}/variance_explained.csv')
 
@@ -149,18 +154,22 @@ def evaluate():
 	words = set([ w.lower() for w in json.load(open('elmo/word2sent.json')).keys() ])
 
 	# paths to GloVe and FastText word vectors
+	# http://nlp.stanford.edu/data/glove.42B.300d.zip
+ 	# https://raw.githubusercontent.com/ekzhu/go-fasttext/master/testdata/wiki.en.vec
+		#"~/csPMI/glove.42B.300d.txt",
+		#"~/csPMI/wiki.en.vec"
 	vector_paths = [
-		"~/csPMI/glove.42B.300d.txt",
-		"~/csPMI/wiki.en.vec"
+		"vector_paths/glove.42B.300d.txt",
+		"vector_paths/wiki.en.vec"
 	]
 
 	# paths to the principal components of the contextualized embeddings
 	# each layer of each model (ELMo, BERT, GPT2) should have its own set
-	pc_path = "~/contextual_embeddings/pcs"
+	pc_path = "./contextual_embeddings/pcs"
 
 	# paths to ELMo embeddings
-	for i in range(1,3):
-		vector_paths.append(os.path.join(pc_path, f'elmo.pc.{i}'))
+	#for i in range(1,3):
+	#	vector_paths.append(os.path.join(pc_path, f'elmo.pc.{i}'))
 
 	# paths to BERT and GPT2 embeddings
 	for i in range(1,13):
@@ -168,7 +177,7 @@ def evaluate():
 		vector_paths.append(os.path.join(pc_path, f'gpt2.pc.{i}'))
 
 	# where to put the smaller embedding files
-	trimmed_embedding_path = "~/contextual_embeddings/trimmed/"
+	trimmed_embedding_path = "./contextual_embeddings/trimmed/"
 
 	for path in tqdm(vector_paths):
 		name = path.split('/')[-1]
@@ -197,3 +206,7 @@ def evaluate():
 	return results
 
 
+visualize_embedding_space();
+visualize_self_similarity();
+visualize_variance_explained();
+evaluate();

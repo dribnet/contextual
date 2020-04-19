@@ -13,9 +13,10 @@ import torch
 import h5py
 from pytorch_pretrained import BertTokenizer, BertModel, BertForMaskedLM
 from pytorch_pretrained import GPT2Tokenizer, GPT2Model, GPT2LMHeadModel
-from allennlp.commands.elmo import ElmoEmbedder
-from allennlp.data.tokenizers.token import Token
-from allennlp.common.tqdm import Tqdm
+# from allennlp.commands.elmo import ElmoEmbedder
+# from allennlp.data.tokenizers.token import Token
+# from allennlp.common.tqdm import Tqdm
+import tqdm
 
 
 class Vectorizer:
@@ -37,7 +38,7 @@ class Vectorizer:
 		sentence_index = 0
 
 		with h5py.File(out_fn, 'w') as fout:
-			for sentence in Tqdm.tqdm(sentences):
+			for sentence in tqdm.tqdm(sentences):
 				embeddings = self.vectorize(sentence)
 				fout.create_dataset(str(sentence_index), embeddings.shape, dtype='float32', data=embeddings)
 				sentence_index += 1
@@ -211,12 +212,12 @@ def index_sentence(data_fn: str, index_fn: str, tokenize: Callable[[str], List[s
 
 if __name__ == "__main__":
 	# where to save the contextualized embeddings
-	EMBEDDINGS_PATH = "~/contextual_embeddings"
+	EMBEDDINGS_PATH = "./contextual_embeddings"
 
 	# sts.csv has been preprocessed to remove all quotes of type ", since they are often not completed
-	elmo = ELMo()
-	sentences = index_sentence('sts.csv', 'elmo/word2sent.json', lambda s: list(map(str, spacy_tokenizer(s))))
-	elmo.make_hdf5_file(sentences, os.path.join(EMBEDDINGS_PATH, 'elmo.hdf5'))
+	# elmo = ELMo()
+	# sentences = index_sentence('sts.csv', 'elmo/word2sent.json', lambda s: list(map(str, spacy_tokenizer(s))))
+	# elmo.make_hdf5_file(sentences, os.path.join(EMBEDDINGS_PATH, 'elmo.hdf5'))
 
 	bert = BertBaseCased()
 	sentences = index_sentence('sts.csv', 'bert/word2sent.json', bert.tokenizer.tokenize)
