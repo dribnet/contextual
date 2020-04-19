@@ -221,8 +221,11 @@ class GPT2Tokenizer(object):
         """ Tokenize a string. """
         bpe_tokens = []
         for token in re.findall(self.pat, text):
-            token = ''.join(self.byte_encoder[ord(b)] for b in token)
-            bpe_tokens.extend(bpe_token for bpe_token in self.bpe(token).split(' '))
+            try:
+                token = ''.join(self.byte_encoder[ord(b)] for b in token)
+                bpe_tokens.extend(bpe_token for bpe_token in self.bpe(token).split(' '))
+            except KeyError:
+                print("yo! have to ignore {} because bad things".format(text))
         return bpe_tokens
 
     def convert_tokens_to_ids(self, tokens):
@@ -238,12 +241,13 @@ class GPT2Tokenizer(object):
                 ids.append(self.special_tokens[token])
             else:
                 ids.append(self.encoder.get(token, 0))
-        if len(ids) > self.max_len:
+        if len(ids) > self.max_len-1:
             logger.warning(
-                "Token indices sequence length is longer than the specified maximum "
+                "yo GPT2! Token indices sequence length is longer than the specified maximum "
                 " sequence length for this OpenAI GPT model ({} > {}). Running this"
                 " sequence through the model will result in indexing errors".format(len(ids), self.max_len)
             )
+            return ids[:(self.max_len-1)]
         return ids
 
     def convert_ids_to_tokens(self, ids, skip_special_tokens=False):
