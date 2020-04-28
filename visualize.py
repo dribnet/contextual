@@ -9,11 +9,14 @@ from tqdm import tqdm
 from word_embeddings_benchmark.web.evaluate import evaluate_on_all
 from word_embeddings_benchmark.web.embeddings import fetch_GloVe, load_embedding
 import argparse
+import shutil
 
 matplotlib.rc('axes', edgecolor='k')
 
 # where the contextualized embeddings are saved (in HDF5 format)
 EMBEDDINGS_PATH = "./contextual_embeddings"
+
+num_layers_table = {'bert': 13, 'gpt2': 13, 'ELMo': 3}
 
 def visualize_embedding_space(models_to_process, file_suffix):
 	"""Plot the baseline charts in the paper. Images are written to the img/ subfolder."""
@@ -21,7 +24,9 @@ def visualize_embedding_space(models_to_process, file_suffix):
 	icons = [ 'ro:', 'bo:', 'go:']
 
 	#for i, (model, num_layers) in enumerate([('ELMo', 3), ('BERT', 13), ('GPT2', 13)]):
-	for i, (model, num_layers) in enumerate([('bert', 13), ('gpt2', 13)]):
+	# for i, (model, num_layers) in enumerate([('bert', 13), ('gpt2', 13)]):
+	for i, model in enumerate(models_to_process):
+		num_layers = num_layers_table[model]
 		x = np.array(range(num_layers))
 		embedding_file = f'{model}/embedding_space_stats{file_suffix}.json'
 		data = json.load(open(embedding_file))
@@ -44,7 +49,9 @@ def visualize_embedding_space(models_to_process, file_suffix):
 	icons = [ 'ro:', 'bo:', 'go:']
 
 	#for i, (model, num_layers) in enumerate([('ELMo', 3), ('BERT', 13), ('GPT2', 13)]):
-	for i, (model, num_layers) in enumerate([('bert', 13), ('gpt2', 13)]):
+	# for i, (model, num_layers) in enumerate([('bert', 13), ('gpt2', 13)]):
+	for i, model in enumerate(models_to_process):
+		num_layers = num_layers_table[model]
 		x = np.array(range(num_layers))
 		embedding_file = f'{model}/embedding_space_stats{file_suffix}.json'
 		data = json.load(open(embedding_file))
@@ -69,7 +76,9 @@ def visualize_self_similarity(models_to_process, file_suffix):
 
 	# plot the mean self-similarity but adjust by subtracting the avg similarity between random pairs of words
 	#for i, (model, num_layers) in enumerate([('ELMo', 3), ('BERT', 13), ('GPT2', 13)]):
-	for i, (model, num_layers) in enumerate([('bert', 13), ('gpt2', 13)]):
+	# for i, (model, num_layers) in enumerate([('bert', 13), ('gpt2', 13)]):
+	for i, model in enumerate(models_to_process):
+		num_layers = num_layers_table[model]
 		embedding_file = f'{model}/embedding_space_stats{file_suffix}.json'
 		embedding_stats = json.load(open(embedding_file))
 		self_similarity_file = f'{model}/self_similarity{file_suffix}.csv'
@@ -95,7 +104,9 @@ def visualize_self_similarity(models_to_process, file_suffix):
 	models = []
 
 	#for i, (model, num_layers) in enumerate([('ELMo', 3), ('BERT', 13), ('GPT2', 13)]):
-	for i, (model, num_layers) in enumerate([('bert', 13), ('gpt2', 13)]):
+	# for i, (model, num_layers) in enumerate([('bert', 13), ('gpt2', 13)]):
+	for i, model in enumerate(models_to_process):
+		num_layers = num_layers_table[model]
 		self_similarity_file = f'{model}/self_similarity{file_suffix}.csv'
 		self_similarity = pd.read_csv(self_similarity_file)
 		self_similarity['avg'] = self_similarity.mean(axis=1)
@@ -120,7 +131,9 @@ def visualize_variance_explained(models_to_process, file_suffix):
 	# plot the mean variance explained by first PC for occurrences of the same word in different sentences
 	# adjust the values by subtracting the variance explained for random sentence vectors
 	#for i, (model, num_layers) in enumerate([('ELMo', 3), ('BERT', 13), ('GPT2', 13)]):
-	for i, (model, num_layers) in enumerate([('bert', 13), ('gpt2', 13)]):
+	# for i, (model, num_layers) in enumerate([('bert', 13), ('gpt2', 13)]):
+	for i, model in enumerate(models_to_process):
+		num_layers = num_layers_table[model]
 		embedding_file = f'{model}/embedding_space_stats{file_suffix}.json'
 		embedding_stats = json.load(open(embedding_file))
 		data = pd.read_csv(f'{model}/variance_explained.csv')
@@ -177,7 +190,8 @@ def evaluate(models_to_process, file_suffix):
 
     # paths to GloVe and FastText word vectors
     # http://nlp.stanford.edu/data/glove.42B.300d.zip
-     # https://raw.githubusercontent.com/ekzhu/go-fasttext/master/testdata/wiki.en.vec
+    # https://raw.githubusercontent.com/ekzhu/go-fasttext/master/testdata/wiki.en.vec
+    # i mean https://dl.fbaipublicfiles.com/fasttext/vectors-wiki/wiki.en.vec
         #"~/csPMI/glove.42B.300d.txt",
         #"~/csPMI/wiki.en.vec"
     vector_paths = [
@@ -198,8 +212,20 @@ def evaluate(models_to_process, file_suffix):
         for i in range(1,13):
             vector_paths.append(os.path.join(EMBEDDINGS_PATH, f'pcs/{model}{file_suffix}.pc.{i}'))
 
+    if file_suffix is None or len(file_suffix) == 0:
+        path_leaf = "none"
+    elif file_suffix[0] == '_':
+        path_leaf = file_suffix[1:]
+    else:
+        path_leaf = file_suffix
+
     # where to put the smaller embedding files
-    trimmed_embedding_path = f'{EMBEDDINGS_PATH}/trimmed/'
+    trimmed_embedding_path = f'{EMBEDDINGS_PATH}/trimmed/{path_leaf}'
+    if os.path.exists(trimmed_embedding_path):
+        print("cleaning out previous contents of {}".format(trimmed_embedding_path))
+        shutil.rmtree(trimmed_embedding_path)
+    print("Creating trimmed results in {}".format(trimmed_embedding_path))
+    os.makedirs(trimmed_embedding_path)
 
     num_found = 0
     for path in tqdm(vector_paths):
@@ -276,7 +302,7 @@ def main():
     if "evaluate" in processes_to_run:
         print(f"Evalutating ...")
         results = evaluate(models_to_process, file_suffix)
-        results.to_csv("results{}.csv".format(file_suffix), sep='\t')
+        results.to_csv("results/results{}.csv".format(file_suffix), sep='\t')
 
 if __name__ == '__main__':
     main()
