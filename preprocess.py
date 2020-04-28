@@ -182,6 +182,8 @@ def index_sentence(data_fn: str, index_fn: str, tokenize: Callable[[str], List[s
 	sentences = []
 	sentence_index = 0
 
+	print("Indexing {} -> {} with min_count {}".format(data_fn, index_fn, min_count))
+
 	with open(data_fn) as csvfile:
 		csvreader = csv.DictReader(csvfile, quotechar='"', delimiter='\t')
 
@@ -234,6 +236,8 @@ def main():
                          help='common suffix to all data files')
     parser.add_argument('--models', default="bert,gpt2",
                          help='comma separated list of models to process')
+    parser.add_argument('--min-count', default=5, type=int,
+                         help='minimum count threshold. less than this is cut')
     args = parser.parse_args()
 
     models_to_process = args.models.split(",")
@@ -249,7 +253,7 @@ def main():
         bert_data_file = os.path.join(EMBEDDINGS_PATH, 'bert{}.hdf5'.format(file_suffix))
 
         bert = BertBaseCased()
-        sentences = index_sentence(input_file, bert_index_file, bert.tokenizer.tokenize)
+        sentences = index_sentence(input_file, bert_index_file, bert.tokenizer.tokenize, args.min_count)
         bert.make_hdf5_file(sentences, bert_data_file)
 
 
@@ -258,7 +262,7 @@ def main():
         gpt2_data_file = os.path.join(EMBEDDINGS_PATH, 'gpt2{}.hdf5'.format(file_suffix))
 
         gpt2 = GPT2()
-        sentences = index_sentence(input_file, gpt2_index_file, lambda s: list(map(str, spacy_tokenizer(s))))
+        sentences = index_sentence(input_file, gpt2_index_file, lambda s: list(map(str, spacy_tokenizer(s))), args.min_count)
         gpt2.make_hdf5_file(sentences, gpt2_data_file)
 
 if __name__ == '__main__':
