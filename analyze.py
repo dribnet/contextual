@@ -55,13 +55,16 @@ def calculate_word_similarity_across_sentences(
 			layer_similarities = []
 
 			for i,j in index_pairs:
-				sent_index_i, word_in_sent_index_i = occurrences[i]
-				embedding_i = f[str(sent_index_i)][layer, word_in_sent_index_i]
+				try:
+					sent_index_i, word_in_sent_index_i = occurrences[i]
+					embedding_i = f[str(sent_index_i)][layer, word_in_sent_index_i]
 
-				sent_index_j, word_in_sent_index_j = occurrences[j]
-				embedding_j = f[str(sent_index_j)][layer, word_in_sent_index_j]
+					sent_index_j, word_in_sent_index_j = occurrences[j]
+					embedding_j = f[str(sent_index_j)][layer, word_in_sent_index_j]
 
-				layer_similarities.append(1 - cosine(embedding_i, embedding_j))
+					layer_similarities.append(1 - cosine(embedding_i, embedding_j))
+				except ValueError:
+					print("Strange ValueError - skipping {}, {}, {}, {}".format(word, layer, i, j))
 
 			mean_layer_similarity = round(np.nanmean(layer_similarities), 3)
 			similarity_by_layer[f'layer_{layer}'] = mean_layer_similarity
@@ -103,18 +106,21 @@ def variance_explained_by_pc(
 
 		# calculate variance explained by the first principal component
 		for layer in range(1, num_layers):
-			embeddings = [ f[str(sent_index)][layer, word_index].tolist() for sent_index, word_index 
-				in word2sent_indexer[word] if f[str(sent_index)][layer, word_index].shape != () ]
+			try:
+				embeddings = [ f[str(sent_index)][layer, word_index].tolist() for sent_index, word_index 
+					in word2sent_indexer[word] if f[str(sent_index)][layer, word_index].shape != () ]
 
-			pca = PCA(n_components=1)
+				pca = PCA(n_components=1)
 
-			if all(x == embeddings[0] for x in embeddings):
-				print("word: {}, layer: {} -- All elements in list are equal, skipping".format(word, layer))
-			else:
-				pca.fit(embeddings)
+				if all(x == embeddings[0] for x in embeddings):
+					print("word: {}, layer: {} -- All elements in list are equal, skipping".format(word, layer))
+				else:
+					pca.fit(embeddings)
 
-				variance_explained[f'layer_{layer}'] = min(1.0, round(pca.explained_variance_ratio_[0], 3))
-				pc_vector_files[layer].write(' '.join([word] + list(map(str, pca.components_[0]))) + '\n')
+					variance_explained[f'layer_{layer}'] = min(1.0, round(pca.explained_variance_ratio_[0], 3))
+					pc_vector_files[layer].write(' '.join([word] + list(map(str, pca.components_[0]))) + '\n')
+			except ValueError:
+				print("Found ValueError - skipping {}, {}".format(word, layer))
 
 		writer.writerow(variance_explained)
 
