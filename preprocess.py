@@ -163,7 +163,7 @@ def index_tokens(tokens: List[str], sent_index: int, indexer: Dict[str, List[Tup
 			indexer[str(token)].append((sent_index, token_index))
 
 
-def index_sentence(data_fn: str, index_fn: str, tokenize: Callable[[str], List[str]], min_count=5) -> List[str]:
+def index_sentence(data_fn: str, index_fn: str, tokenize: Callable[[str], List[str]], min_count=5, do_lower_case=False) -> List[str]:
 	"""
 	Given a data file data_fn with the format of sts.csv, index the words by sentence in the order
 	they appear in data_fn. 
@@ -181,12 +181,14 @@ def index_sentence(data_fn: str, index_fn: str, tokenize: Callable[[str], List[s
 	word2sent_indexer = {}
 	sentences = []
 	sentence_index = 0
+	sentence_set = set()
 
 	print("Indexing {} -> {} with min_count {}".format(data_fn, index_fn, min_count))
 
 	with open(data_fn) as csvfile:
 		csvreader = csv.DictReader(csvfile, quotechar='"', delimiter='\t')
 
+		duplicates_removed = 0
 		for line in csvreader:
 			# only consider scored sentence pairs
 			if line['Score'] == '':	
@@ -196,12 +198,19 @@ def index_sentence(data_fn: str, index_fn: str, tokenize: Callable[[str], List[s
 			if line['Sent2'] is None:
 				line['Sent1'], line['Sent2'] = line['Sent1'].split('\t')[:2]
 
-			index_tokens(tokenize(line['Sent1']), sentence_index, word2sent_indexer)
-			index_tokens(tokenize(line['Sent2']), sentence_index + 1, word2sent_indexer)
-			sentences.append(line['Sent1'])
-			sentences.append(line['Sent2'])
-			sentence_index += 2
+			for sentence_candidate in [line['Sent1'], line['Sent2']]:
+				if do_lower_case:
+					sentence_candidate = sentence_candidate.lower()
+				if sentence_candidate in sentence_set:
+					# print("ignoring duplicate sentence: {}".format(sentence_candidate))
+					duplicates_removed += 1
+				else:
+					index_tokens(tokenize(sentence_candidate), sentence_index, word2sent_indexer)
+					sentences.append(sentence_candidate)
+					sentence_set.add(sentence_candidate)
+					sentence_index += 1
 
+	print("Sentence summary: found {} unique sentences ({} duplicates removed, lower_case={})".format(sentence_index, duplicates_removed, do_lower_case))
 	# remove words that appear less than min_count times
 	infrequent_words = list(filter(lambda w: len(word2sent_indexer[w]) < min_count, word2sent_indexer.keys()))
 	
@@ -238,6 +247,8 @@ def main():
                          help='comma separated list of models to process')
     parser.add_argument('--min-count', default=5, type=int,
                          help='minimum count threshold. less than this is cut')
+    parser.add_argument('--do-lower-case', default=False, type=bool,
+                         help='lowercase all input while reading')
     args = parser.parse_args()
 
     models_to_process = args.models.split(",")
@@ -253,7 +264,7 @@ def main():
         bert_data_file = os.path.join(EMBEDDINGS_PATH, 'bert{}.hdf5'.format(file_suffix))
 
         bert = BertBaseCased()
-        sentences = index_sentence(input_file, bert_index_file, bert.tokenizer.tokenize, args.min_count)
+        sentences = index_sentence(input_file, bert_index_file, bert.tokenizer.tokenize, args.min_count, args.do_lower_case)
         bert.make_hdf5_file(sentences, bert_data_file)
 
 
@@ -262,7 +273,7 @@ def main():
         gpt2_data_file = os.path.join(EMBEDDINGS_PATH, 'gpt2{}.hdf5'.format(file_suffix))
 
         gpt2 = GPT2()
-        sentences = index_sentence(input_file, gpt2_index_file, lambda s: list(map(str, spacy_tokenizer(s))), args.min_count)
+        sentences = index_sentence(input_file, gpt2_index_file, lambda s: list(map(str, spacy_tokenizer(s))), args.min_count, args.do_lower_case)
         gpt2.make_hdf5_file(sentences, gpt2_data_file)
 
 if __name__ == '__main__':
