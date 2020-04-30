@@ -302,7 +302,7 @@ def main():
     if "evaluate" in processes_to_run:
         print(f"Evalutating ...")
         results = evaluate(models_to_process, file_suffix)
-        results.to_csv("results/results{}.csv".format(file_suffix), sep='\t')
+        results.to_csv("results/results{}.tsv".format(file_suffix), sep='\t')
 
 if __name__ == '__main__':
     main()

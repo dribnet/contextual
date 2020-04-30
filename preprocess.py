@@ -245,6 +245,8 @@ def main():
                          help='common suffix to all data files')
     parser.add_argument('--models', default="bert,gpt2",
                          help='comma separated list of models to process')
+    parser.add_argument('--input', default="inputs/sts.csv",
+                         help='input file')
     parser.add_argument('--min-count', default=5, type=int,
                          help='minimum count threshold. less than this is cut')
     parser.add_argument('--do-lower-case', default=False, type=bool,
@@ -257,7 +259,7 @@ def main():
     if args.suffix is not None:
         file_suffix = "_{}".format(args.suffix)
 
-    input_file = "sts{}.csv".format(file_suffix)
+    input_file = args.input
 
     if "bert" in models_to_process:
         bert_index_file = 'bert/word2sent{}.json'.format(file_suffix)
