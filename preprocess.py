@@ -196,7 +196,7 @@ def index_sentence(data_fn: str, index_fn: str, tokenize: Callable[[str], List[s
 			print("opened {}".format(word_filter))
 			for line in file_in:
 				word = line.strip()
-				print(f"Adding f{word}")
+				# print(f"Adding {word}")
 				word_filter_set.add(word)
 		# word_filter_set = set(["hello", "my", "friend"])
 
@@ -224,11 +224,12 @@ def index_sentence(data_fn: str, index_fn: str, tokenize: Callable[[str], List[s
 					duplicates_removed += 1
 				else:
 					tokens = tokenize(sentence_candidate)
-					# print(tokens)
-					if len(word_filter_set) > 0 and set(tokens).isdisjoint(word_filter_set):
+					downcased_tokens = [w.lower() for w in tokens]
+					if len(word_filter_set) > 0 and set(downcased_tokens).isdisjoint(word_filter_set):
 						sentences_filtered += 1
-						# print("skipping")
+						# print("skipping", tokens)
 					else:
+						# print("found", set(downcased_tokens).intersection(word_filter_set))
 						index_tokens(tokens, sentence_index, word2sent_indexer)
 						sentences.append(sentence_candidate)
 						sentence_set.add(sentence_candidate)
