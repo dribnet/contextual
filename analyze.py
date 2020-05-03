@@ -1,3 +1,4 @@
+import sys
 import os
 import h5py
 import json
@@ -56,14 +57,19 @@ def calculate_word_similarity_across_sentences(
 			for i,j in index_pairs:
 				try:
 					sent_index_i, word_in_sent_index_i = occurrences[i]
+					# print(sent_index_i, word_in_sent_index_i, layer, occurrences)
+					# print(f[str(sent_index_i)])
 					embedding_i = f[str(sent_index_i)][layer, word_in_sent_index_i]
 
 					sent_index_j, word_in_sent_index_j = occurrences[j]
+					# print(sent_index_j, word_in_sent_index_j)
+					# print(f[str(sent_index_j)])
 					embedding_j = f[str(sent_index_j)][layer, word_in_sent_index_j]
 
 					layer_similarities.append(1 - cosine(embedding_i, embedding_j))
 				except ValueError:
 					print("Strange ValueError - skipping {}, {}, {}, {}".format(word, layer, i, j))
+					sys.exit(0)
 
 			mean_layer_similarity = round(np.nanmean(layer_similarities), 3)
 			similarity_by_layer[f'layer_{layer}'] = mean_layer_similarity

@@ -16,7 +16,7 @@ matplotlib.rc('axes', edgecolor='k')
 # where the contextualized embeddings are saved (in HDF5 format)
 EMBEDDINGS_PATH = "./contextual_embeddings"
 
-num_layers_table = {'bert': 13, 'gpt2': 13, 'ELMo': 3}
+num_layers_table = {'newbert': 13, 'bert': 13, 'gpt2': 13, 'ELMo': 3}
 
 def visualize_embedding_space(models_to_process, file_suffix):
 	"""Plot the baseline charts in the paper. Images are written to the img/ subfolder."""
@@ -136,7 +136,7 @@ def visualize_variance_explained(models_to_process, file_suffix):
 		num_layers = num_layers_table[model]
 		embedding_file = f'{model}/embedding_space_stats{file_suffix}.json'
 		embedding_stats = json.load(open(embedding_file))
-		data = pd.read_csv(f'{model}/variance_explained.csv')
+		data = pd.read_csv(f'{model}/variance_explained{file_suffix}.csv')
 
 		x = np.array(range(1, num_layers))
 		y1 = np.array([ data[f'layer_{i}'].mean() for i in x ])
