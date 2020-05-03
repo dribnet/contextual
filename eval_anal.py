@@ -23,8 +23,8 @@ EMBEDDINGS_PATH = "./contextual_embeddings"
 
 num_layers_table = {'bert': 13, 'gpt2': 13, 'ELMo': 3}
 
-def fetch_all_analogies():
-    with open("/home/tom/web_data/analogy/EN-GOOGLE/EN-GOOGLE.txt", "r") as f:
+def fetch_all_analogies(analogies_file):
+    with open(analogies_file, "r") as f:
         L = f.read().splitlines()
 
     # Simple 4 word analogy questions with categories
@@ -96,8 +96,8 @@ glove_42b_baseline = {
   "gram6-nationality-adjective": 0.8830519074421513,
 }
 
-def evaluate_analogies(embed_name, w):
-    data = fetch_all_analogies()
+def evaluate_analogies(embed_name, w, data):
+    # data = fetch_all_analogies()
     all_categories = set(data["category"])
 
     catogory_results = []
@@ -169,7 +169,7 @@ def report_analogy_results(result_table, baseline_table):
         scaled_result = result / baseline_result
         print(embed_name, k, result, scaled_result)
 
-def evaluate(models_to_process, file_suffix):
+def evaluate(models_to_process, file_suffix, analogies):
     """
     Evaluate both typical word embeddings (GloVe, FastText) and word embeddings created by taking the
     first PC of contextualized embeddings on standard benchmarks for word vectors (see paper for
@@ -270,7 +270,7 @@ def evaluate(models_to_process, file_suffix):
 
             embeddings = load_embedding(pth, format='glove', normalize=True, lower=True,
                 clean_words=False, load_kwargs=load_kwargs)
-            result_table[fn] = evaluate_analogies(fn, embeddings)
+            result_table[fn] = evaluate_analogies(fn, embeddings, analogies)
             # df['Model'] = fn
             # results.append(df)
         else:
@@ -312,6 +312,8 @@ def main():
                          help='common suffix to all data files')
     parser.add_argument('--models', default="bert,gpt2",
                          help='comma separated list of models to process')
+    parser.add_argument('--input', default="/home/tom/web_data/analogy/EN-GOOGLE/EN-GOOGLE.txt",
+                         help='analogies file')
     args = parser.parse_args()
 
     models_to_process = args.models.split(",")
@@ -320,8 +322,10 @@ def main():
     if args.suffix is not None:
         file_suffix = "_{}".format(args.suffix)
 
+    analogies = fetch_all_analogies(args.input)
+
     print(f"Evalutating ...")
-    results = evaluate(models_to_process, file_suffix)
+    results = evaluate(models_to_process, file_suffix, analogies)
     # results.to_csv("results/anal_results{}.tsv".format(file_suffix), sep='\t')
 
 if __name__ == '__main__':
