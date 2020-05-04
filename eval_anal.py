@@ -227,7 +227,7 @@ def evaluate(models_to_process, file_suffix, analogies):
     # paths to BERT and GPT2 embeddings
     for model in models_to_process:
         for i in range(1,13):
-            vector_paths.append(os.path.join(EMBEDDINGS_PATH, f'pcs/{model}{file_suffix}.pc.{i}'))
+            vector_paths.append(os.path.join(EMBEDDINGS_PATH, f'pcs/{model}{file_suffix}.pc.{i:02d}'))
 
     if file_suffix is None or len(file_suffix) == 0:
         path_leaf = "none"
