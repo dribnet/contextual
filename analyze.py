@@ -77,11 +77,11 @@ def calculate_word_similarity_across_sentences(
 
 		writer.writerow(similarity_by_layer)
 
-
 def variance_explained_by_pc(
 	embedding_fn: str, 
 	word2sent_indexer: Dict[str, List[Tuple[int, int]]],
 	variance_explained_fn : str,
+	analyze_setting: str,
 	pc_fn : str) -> None:
 	"""
 	Each word in word2sent_indexer appears in multiple sentences. Thus each occurrence of the word 
@@ -93,6 +93,7 @@ def variance_explained_by_pc(
 	Write the first principal component for each word to pc_fn + str(layer_index), where each row 
 	starts with a word followed by space-separated numbers.
 	"""
+
 	f = h5py.File(embedding_fn, 'r')
 	num_layers = f["0"].shape[0]
 
@@ -104,9 +105,9 @@ def variance_explained_by_pc(
 	writer.writeheader()
 
 	# files to write the principal components to 
-	pc_vector_files = { layer: open(pc_fn + str(layer), 'w') for layer in range(1, num_layers) }
+	pc_vector_files = { layer: open(pc_fn + f'{layer:02d}', 'w') for layer in range(1, num_layers) }
 
-	analyze_setting = 'mean'
+	analyze_setting_shown = False
 
 	for word in tqdm.tqdm(word2sent_indexer):
 		variance_explained = { 'word' : word }
@@ -125,16 +126,23 @@ def variance_explained_by_pc(
 					pca.fit(embeddings)
 
 					if analyze_setting == 'original':
-						# print("ORIGINAL")
+						if not analyze_setting_shown:
+							print("ORIGINAL analyze_setting")
+							analyze_setting_shown = True
 						variance_explained[f'layer_{layer}'] = min(1.0, round(pca.explained_variance_ratio_[0], 3))
 						pc_vector_files[layer].write(' '.join([word] + list(map(str, pca.components_[0]))) + '\n')
 					elif analyze_setting == 'mean':
+						if not analyze_setting_shown:
+							print("MEAN analyze_setting")
+							analyze_setting_shown = True
 						variance_explained[f'layer_{layer}'] = min(1.0, round(pca.explained_variance_ratio_[0], 3))
 						mean_vector = np.average(embeddings, axis=0)
 						# print("mean", len(embeddings), len(embeddings[0]), mean_vector.shape, pca.components_[0].shape)
 						pc_vector_files[layer].write(' '.join([word] + list(map(str, mean_vector))) + '\n')
 					else:						
-						# print("NONORIGINAL")
+						if not analyze_setting_shown:
+							print("Default (truncate) analyze_setting")
+							analyze_setting_shown = True
 						pca_svd = TruncatedSVD(n_components=100)
 						pca_svd.fit(embeddings)
 
@@ -266,6 +274,8 @@ def main():
                          help='comma separated list of models to process')
     parser.add_argument('--processes', default="similarity,variance,embedding",
                          help='comma separated list of what to process')
+    parser.add_argument('--analyze-setting', default="truncate",
+    					 help='truncate works best, but also original and mean available')
     args = parser.parse_args()
 
     models_to_process = args.models.split(",")
@@ -290,6 +300,7 @@ def main():
             print(f"Analyzing variance explained by first principal component ...")
             variance_explained_by_pc(EMBEDDINGS_FULL_PATH, word2sent_indexer,
                 f'{model}/variance_explained{file_suffix}.csv',
+                args.analyze_setting,
                 os.path.join(EMBEDDINGS_PATH, f'pcs/{model}{file_suffix}.pc.'))
 
         if "embedding" in processes_to_run:
