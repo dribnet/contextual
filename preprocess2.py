@@ -271,7 +271,7 @@ def index_sentence(data_fn: str, index_fn: str, tokenize: Callable[[str], List[s
           duplicates_removed += 1
         else:
           tokens = tokenize(sentence_candidate)
-          # print("checking", tokens)
+          # print("checking", sentence_candidate, tokens)
           downcased_tokens = [w.lower() for w in tokens]
           if len(word_filter_set) > 0 and set(downcased_tokens).isdisjoint(word_filter_set):
             sentences_filtered += 1

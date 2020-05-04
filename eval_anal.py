@@ -21,7 +21,7 @@ matplotlib.rc('axes', edgecolor='k')
 # where the contextualized embeddings are saved (in HDF5 format)
 EMBEDDINGS_PATH = "./contextual_embeddings"
 
-num_layers_table = {'bert': 13, 'gpt2': 13, 'ELMo': 3}
+num_layers_table = {'oldbert': 13, 'newbert': 13, 'gpt2': 13, 'ELMo': 3}
 
 def fetch_all_analogies(analogies_file):
     with open(analogies_file, "r") as f:
@@ -251,8 +251,13 @@ def evaluate(models_to_process, file_suffix, analogies):
         with open(os.path.join(trimmed_embedding_path, name), 'w') as f_out:
             for line in open(path):
                 if line.split()[0].lower() in words:
+                    cur_word = line.strip()
+                    # if cur_word[0:2] == '__':
+                    #   cur_word = cur_word[2:]
+                    # if cur_word[0:1] == '__':
+                    #   cur_word = cur_word[1:]
                     num_found = num_found + 1
-                    f_out.write(line.strip() + '\n')
+                    f_out.write(cur_word + '\n')
 
     print("vocabulary found {} words".format(num_found))
     result_table = {}

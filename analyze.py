@@ -106,6 +106,8 @@ def variance_explained_by_pc(
 	# files to write the principal components to 
 	pc_vector_files = { layer: open(pc_fn + str(layer), 'w') for layer in range(1, num_layers) }
 
+	analyze_setting = 'mean'
+
 	for word in tqdm.tqdm(word2sent_indexer):
 		variance_explained = { 'word' : word }
 
@@ -122,11 +124,22 @@ def variance_explained_by_pc(
 				else:
 					pca.fit(embeddings)
 
-					pca_svd = TruncatedSVD(n_components=100)
-					pca_svd.fit(embeddings)
+					if analyze_setting == 'original':
+						# print("ORIGINAL")
+						variance_explained[f'layer_{layer}'] = min(1.0, round(pca.explained_variance_ratio_[0], 3))
+						pc_vector_files[layer].write(' '.join([word] + list(map(str, pca.components_[0]))) + '\n')
+					elif analyze_setting == 'mean':
+						variance_explained[f'layer_{layer}'] = min(1.0, round(pca.explained_variance_ratio_[0], 3))
+						mean_vector = np.average(embeddings, axis=0)
+						# print("mean", len(embeddings), len(embeddings[0]), mean_vector.shape, pca.components_[0].shape)
+						pc_vector_files[layer].write(' '.join([word] + list(map(str, mean_vector))) + '\n')
+					else:						
+						# print("NONORIGINAL")
+						pca_svd = TruncatedSVD(n_components=100)
+						pca_svd.fit(embeddings)
 
-					variance_explained[f'layer_{layer}'] = min(1.0, round(pca.explained_variance_ratio_[0], 3))
-					pc_vector_files[layer].write(' '.join([word] + list(map(str, pca_svd.components_[0]))) + '\n')
+						variance_explained[f'layer_{layer}'] = min(1.0, round(pca.explained_variance_ratio_[0], 3))
+						pc_vector_files[layer].write(' '.join([word] + list(map(str, pca_svd.components_[0]))) + '\n')
 			except ValueError:
 				print("Found ValueError - skipping {}, {}".format(word, layer))
 

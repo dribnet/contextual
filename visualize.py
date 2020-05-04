@@ -16,7 +16,7 @@ matplotlib.rc('axes', edgecolor='k')
 # where the contextualized embeddings are saved (in HDF5 format)
 EMBEDDINGS_PATH = "./contextual_embeddings"
 
-num_layers_table = {'newbert': 13, 'bert': 13, 'gpt2': 13, 'ELMo': 3}
+num_layers_table = {'t5': 13, 'newbert': 13, 'oldbert': 13, 'gpt2': 13, 'ELMo': 3}
 
 def visualize_embedding_space(models_to_process, file_suffix):
 	"""Plot the baseline charts in the paper. Images are written to the img/ subfolder."""
