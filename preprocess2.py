@@ -325,9 +325,9 @@ def main():
 
     input_file = args.input
 
-    if "newbert" in models_to_process:
-        newbert_index_file = 'newbert/word2sent{}.json'.format(file_suffix)
-        newbert_data_file = os.path.join(EMBEDDINGS_PATH, 'newbert{}.hdf5'.format(file_suffix))
+    if "bert" in models_to_process:
+        newbert_index_file = 'bert/word2sent{}.json'.format(file_suffix)
+        newbert_data_file = os.path.join(EMBEDDINGS_PATH, 'bert{}.hdf5'.format(file_suffix))
 
         newbert = NewBertBaseCased()
         sentences = index_sentence(input_file, newbert_index_file, newbert.tokenizer.tokenize, args.min_count, args.do_lower_case, args.word_filter)
@@ -348,7 +348,6 @@ def main():
         oldbert = OldBertBaseCased()
         sentences = index_sentence(input_file, oldbert_index_file, oldbert.tokenizer.tokenize, args.min_count, args.do_lower_case, args.word_filter)
         oldbert.make_hdf5_file(sentences, oldbert_data_file)
-
 
     if "gpt2" in models_to_process:
         gpt2_index_file = 'gpt2/word2sent{}.json'.format(file_suffix)

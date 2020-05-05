@@ -16,7 +16,7 @@ matplotlib.rc('axes', edgecolor='k')
 # where the contextualized embeddings are saved (in HDF5 format)
 EMBEDDINGS_PATH = "./contextual_embeddings"
 
-num_layers_table = {'t5': 13, 'newbert': 13, 'oldbert': 13, 'gpt2': 13, 'ELMo': 3}
+num_layers_table = {'t5': 13, 'bert': 13, 'oldbert': 13, 'gpt2': 13, 'ELMo': 3}
 
 def visualize_embedding_space(models_to_process, file_suffix):
 	"""Plot the baseline charts in the paper. Images are written to the img/ subfolder."""
@@ -262,13 +262,8 @@ def evaluate(models_to_process, file_suffix):
     return results
 
 
-if __name__ == "__old_main__":
-    visualize_embedding_space();
-    visualize_self_similarity();
-    visualize_variance_explained();
-    results = evaluate();
-    print(results);
-    results.to_csv("results.csv", sep='\t')
+columns = ['SimLex999','MEN','WS353','RW','Google','MSR','SemEval2012_2','BLESS','AP','Battig','ESSLI_1a','ESSLI_2b','ESSLI_2c','MTurk','RG65','TR9856','WS353R','WS353S']
+# columns = ['Model','SimLex999','MEN','WS353','RW','Google','MSR','SemEval2012_2','BLESS','AP','Battig','ESSLI_1a','ESSLI_2b','ESSLI_2c','MTurk','RG65','TR9856','WS353R','WS353S']
 
 def main():
     parser = argparse.ArgumentParser(description="pre process csv data file into hdf5")
@@ -302,7 +297,10 @@ def main():
     if "evaluate" in processes_to_run:
         print(f"Evalutating ...")
         results = evaluate(models_to_process, file_suffix)
+        results = results.sort_values(by=["Model"], ascending=True)
+        print(results)
         results.to_csv("results/results{}.tsv".format(file_suffix), sep='\t')
+        results[columns].to_csv("results/results_s_{}.tsv".format(file_suffix), sep='\t')
 
 if __name__ == '__main__':
     main()
