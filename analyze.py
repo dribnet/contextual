@@ -274,7 +274,7 @@ def main():
                          help='comma separated list of models to process')
     parser.add_argument('--processes', default="similarity,variance,embedding",
                          help='comma separated list of what to process')
-    parser.add_argument('--analyze-setting', default="truncate",
+    parser.add_argument('--analyze-setting', default="mean",
     					 help='truncate works best, but also original and mean available')
     args = parser.parse_args()
 
