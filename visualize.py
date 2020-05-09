@@ -16,7 +16,7 @@ matplotlib.rc('axes', edgecolor='k')
 # where the contextualized embeddings are saved (in HDF5 format)
 EMBEDDINGS_PATH = "./contextual_embeddings"
 
-num_layers_table = {'t5': 13, 'bert': 13, 'oldbert': 13, 'gpt2': 13, 'ELMo': 3}
+num_layers_table = {'t5': 25, 'bert': 13, 'oldbert': 13, 'gpt2': 13, 'ELMo': 3}
 
 def visualize_embedding_space(models_to_process, file_suffix):
 	"""Plot the baseline charts in the paper. Images are written to the img/ subfolder."""
@@ -209,7 +209,8 @@ def evaluate(models_to_process, file_suffix):
 
     # paths to BERT and GPT2 embeddings
     for model in models_to_process:
-        for i in range(1,13):
+        num_layers = num_layers_table[model]
+        for i in range(1,num_layers):
             vector_paths.append(os.path.join(EMBEDDINGS_PATH, f'pcs/{model}{file_suffix}.pc.{i:02d}'))
 
     if file_suffix is None or len(file_suffix) == 0:
@@ -299,8 +300,8 @@ def main():
         results = evaluate(models_to_process, file_suffix)
         results = results.sort_values(by=["Model"], ascending=True)
         print(results)
-        results.to_csv("results/results{}.tsv".format(file_suffix), sep='\t')
-        results[columns].to_csv("results/results_s_{}.tsv".format(file_suffix), sep='\t')
+        results.to_csv("results/results{}_raw.tsv".format(file_suffix), sep='\t')
+        results[columns].to_csv("results/results{}.tsv".format(file_suffix), sep='\t')
 
 if __name__ == '__main__':
     main()

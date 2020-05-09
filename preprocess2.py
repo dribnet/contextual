@@ -309,7 +309,7 @@ def main():
                          help='comma separated list of models to process')
     parser.add_argument('--input', default="inputs/sts.csv",
                          help='input file')
-    parser.add_argument('--min-count', default=5, type=int,
+    parser.add_argument('--min-count', default=3, type=int,
                          help='minimum count threshold. less than this is cut')
     parser.add_argument('--do-lower-case', default=False, type=bool,
                          help='lowercase all input while reading')

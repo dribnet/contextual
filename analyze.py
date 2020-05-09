@@ -105,7 +105,7 @@ def variance_explained_by_pc(
 	writer.writeheader()
 
 	# files to write the principal components to 
-	pc_vector_files = { layer: open(pc_fn + f'{layer:02d}', 'w') for layer in range(1, num_layers) }
+	pc_vector_files = { layer: open(pc_fn + f'{layer:02d}', 'w') for layer in range(0, num_layers) }
 
 	analyze_setting_shown = False
 

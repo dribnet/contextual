@@ -2,6 +2,7 @@ import os
 import csv
 import json
 import spacy
+import sys
 from spacy.lang.en import English
 from typing import Dict, Tuple, Sequence, List, Callable
 import argparse
@@ -116,16 +117,21 @@ class NewBertBaseCased(Vectorizer):
     # input_ids = torch.tensor(tokens).unsqueeze(0)  # Batch size 1
     outputs = self.model(result.input_ids)
     output_embeddings = outputs[2]
-    embeddings = torch.stack(output_embeddings, dim=0).squeeze()[:,1:-1,:]
+    # embeddings = torch.stack(output_embeddings, dim=0).squeeze()[:,1:-1,:]
+    embeddings = torch.stack(output_embeddings, dim=0).squeeze()[:,:,:]
     embeddings = embeddings.detach().numpy()
     # print("NEW", embeddings.shape)            
     return embeddings
 
 class T5Base(Vectorizer):
-  def __init__(self):
-    self.tokenizer = T5Tokenizer.from_pretrained('t5-base')
-    config = T5Config.from_pretrained("t5-base", output_hidden_states=True)
-    self.model = T5ForConditionalGeneration.from_pretrained('t5-base', config=config)
+  def __init__(self, MODEL_NAME, sentence_prefix):
+    self.tokenizer = transformers.AutoTokenizer.from_pretrained(MODEL_NAME, use_fast=True)
+    config = T5Config.from_pretrained(MODEL_NAME, output_hidden_states=True)
+    self.model = T5ForConditionalGeneration.from_pretrained(MODEL_NAME, config=config)
+    self.MODEL_NAME = MODEL_NAME
+    self.sentence_prefix = sentence_prefix
+    print("Setup T5 model {} with prefix [{}]".format(self.MODEL_NAME, self.sentence_prefix))
+    # self.sentence_prefix = "sst2 sentence: "
 
   def vectorize(self, sentence: str) -> numpy.ndarray:
     """
@@ -133,9 +139,15 @@ class T5Base(Vectorizer):
     Even though there are only 12 layers in GPT2, we include the input embeddings as the first
     layer (for a fairer comparison to ELMo).
     """
-    input_ids = self.tokenizer.encode(sentence, return_tensors="pt")
+    inputs = self.tokenizer.encode_plus(sentence, return_token_type_ids=True, return_tensors="pt")
+    input_ids = inputs["input_ids"]
+    # outputs = self.model(result.input_ids)
+    # input_ids = self.tokenizer.encode(sentence, return_tensors="pt")
+    # outputs = self.model(input_ids=input_ids, decoder_input_ids=input_ids, lm_labels=input_ids)
+    # outputs = self.model.generate(**inputs)
     outputs = self.model(input_ids=input_ids, decoder_input_ids=input_ids, lm_labels=input_ids)
     output_embeddings = outputs[3]
+    # embeddings = torch.stack(output_embeddings, dim=0).squeeze()[:,:,:]
     embeddings = torch.stack(output_embeddings, dim=0).squeeze()[:,:,:]
     embeddings = embeddings.detach().numpy()
     # print("NEW", embeddings.shape)            
@@ -221,7 +233,9 @@ def get_index_word_pairs_from_tokens(tokens, tokenizer):
 
   # print(tokens)
   # print(tokenizer.decode(tokens))
-  words_in_sentence = words_from_sentence(tokenizer.decode(tokens))[1:-1]
+  # TODO: remove pure digits
+  words_in_sentence = words_from_sentence(tokenizer.decode(tokens))
+  # words_in_sentence = words_from_sentence(tokenizer.decode(tokens))[1:-1]
   # print(words_in_sentence)
   cur_target_word = 0
   cur_candate_token = 0
@@ -235,8 +249,8 @@ def get_index_word_pairs_from_tokens(tokens, tokenizer):
       elif words_in_sentence[cur_target_word] == candidates[j]:
         # if cur_candate_token < j:
         #   print("warning, skipping tokens:",candidates[cur_candate_token:j])
-        # print("Found {} at position {}".format(words_in_sentence[cur_target_word], i-1))
-        all_pairs.append([words_in_sentence[cur_target_word], i-1])
+        # print("Found {} at position {}".format(words_in_sentence[cur_target_word], i))
+        all_pairs.append([words_in_sentence[cur_target_word], i])
         cur_target_word = cur_target_word + 1
         cur_candate_token = j + 1
   return all_pairs
@@ -261,7 +275,7 @@ def index_tokens(tokens: List[str], tokenizer, sent_index: int, indexer: Dict[st
     indexer[word].append((sent_index, token_index))
 
 
-def index_sentence(data_fn: str, index_fn: str, tokenizer, min_count=5, do_lower_case=False, word_filter=None) -> List[str]:
+def index_sentence(data_fn: str, index_fn: str, tokenizer, min_count=5, do_lower_case=False, word_filter=None, sentence_prefix=None) -> List[str]:
   """
   Given a data file data_fn with the format of sts.csv, index the words by sentence in the order
   they appear in data_fn. 
@@ -282,6 +296,7 @@ def index_sentence(data_fn: str, index_fn: str, tokenizer, min_count=5, do_lower
   sentence_set = set()
   word_filter_set = set()
 
+  # print(sentence_prefix)
   # print(tokenize, decoder, min_count, do_lower_case, word_filter)
 
   if word_filter is not None:
@@ -301,6 +316,10 @@ def index_sentence(data_fn: str, index_fn: str, tokenizer, min_count=5, do_lower
     # word_filter_set = set(["hello", "my", "friend"])
 
   print("Indexing {} -> {} with min_count {} and filter {}".format(data_fn, index_fn, min_count, len(word_filter_set)))
+  minimum_word_count = 3
+  if sentence_prefix is not None:
+    print("Using sentence prefix: [{}]".format(sentence_prefix))
+    minimum_word_count = minimum_word_count + len(words_from_sentence(sentence_prefix))
 
   with open(data_fn) as csvfile:
     csvreader = csv.DictReader(csvfile, quotechar='"', delimiter='\t')
@@ -319,12 +338,15 @@ def index_sentence(data_fn: str, index_fn: str, tokenizer, min_count=5, do_lower
       for sentence_candidate in [line['Sent1'], line['Sent2']]:
         if do_lower_case:
           sentence_candidate = sentence_candidate.lower()
+        if sentence_prefix is not None:
+          sentence_candidate = f"{sentence_prefix}{sentence_candidate}"
         if sentence_candidate in sentence_set:
           # print("ignoring duplicate sentence: {}".format(sentence_candidate))
           duplicates_removed += 1
         else:
           # tokens = tokenizer.tokenize(sentence_candidate)
           words = words_from_sentence(sentence_candidate)
+          # print(sentence_candidate, words)
           results = tokenizer.encode_plus(sentence_candidate, return_token_type_ids=True, return_tensors="pt")
           token_ids = results.input_ids[0].numpy()
           # print("checking", sentence_candidate, tokens)
@@ -332,7 +354,7 @@ def index_sentence(data_fn: str, index_fn: str, tokenizer, min_count=5, do_lower
           if len(word_filter_set) > 0 and set(downcased_tokens).isdisjoint(word_filter_set):
             sentences_filtered += 1
             # print("skipping", tokens)
-          elif len(words) < 3:
+          elif len(words) < minimum_word_count:
             sentences_filtered += 1
             print("too short: {} -> {}".format(sentence_candidate, words))
           else:
@@ -371,6 +393,10 @@ def main():
                          help='lowercase all input while reading')
     parser.add_argument('--word-filter', default=None,
                          help='keep only sentences that match set of words in filter')
+    parser.add_argument('--t5-model', default='t5-base',
+                         help='which t5 model to run')
+    parser.add_argument('--t5-prefix', default='sst2 sentence: ',
+                         help='which prefix (task) to run')
     args = parser.parse_args()
 
     models_to_process = args.models.split(",")
@@ -393,8 +419,8 @@ def main():
         t5_index_file = 't5/word2sent{}.json'.format(file_suffix)
         t5_data_file = os.path.join(EMBEDDINGS_PATH, 't5{}.hdf5'.format(file_suffix))
 
-        t5 = T5Base()
-        sentences = index_sentence(input_file, t5_index_file, t5.tokenizer.tokenize, args.min_count, args.do_lower_case, args.word_filter)
+        t5 = T5Base(args.t5_model, args.t5_prefix)
+        sentences = index_sentence(input_file, t5_index_file, t5.tokenizer, args.min_count, args.do_lower_case, args.word_filter, t5.sentence_prefix)
         t5.make_hdf5_file(sentences, t5_data_file)
 
     if "oldbert" in models_to_process:
