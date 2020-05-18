@@ -17,17 +17,17 @@ matplotlib.rc('axes', edgecolor='k')
 EMBEDDINGS_PATH = "./contextual_embeddings"
 
 # t5-large num_layers_table = {'t5': 25, 'bert': 13, 'oldbert': 13, 'gpt2': 13, 'ELMo': 3}
-num_layers_table = {'t5': 13, 'bert': 13, 'gpt2': 13}
+num_layers_table = {'t5': 13, 'bert': 13, 'gpt2': 13, 'roberta': 13}
+icons = [ 'ro:', 'bo:', 'go:', 'co:', 'mo:', 'yo:', 'co:']
 
 def visualize_embedding_space(models_to_process, file_suffix):
 	"""Plot the baseline charts in the paper. Images are written to the img/ subfolder."""
 	plt.figure(figsize=(12,4))
-	icons = [ 'ro:', 'bo:', 'go:']
 
 	#for i, (model, num_layers) in enumerate([('ELMo', 3), ('BERT', 13), ('GPT2', 13)]):
 	# for i, (model, num_layers) in enumerate([('bert', 13), ('gpt2', 13)]):
 	for i, model in enumerate(models_to_process):
-		num_layers = num_layers_table[model]
+		num_layers = num_layers_table[model] if model in num_layers_table else 13
 		x = np.array(range(num_layers))
 		embedding_file = f'{model}/embedding_space_stats{file_suffix}.json'
 		data = json.load(open(embedding_file))
@@ -47,12 +47,11 @@ def visualize_embedding_space(models_to_process, file_suffix):
 	plt.close()
 
 	plt.figure(figsize=(12,4))
-	icons = [ 'ro:', 'bo:', 'go:']
 
 	#for i, (model, num_layers) in enumerate([('ELMo', 3), ('BERT', 13), ('GPT2', 13)]):
 	# for i, (model, num_layers) in enumerate([('bert', 13), ('gpt2', 13)]):
 	for i, model in enumerate(models_to_process):
-		num_layers = num_layers_table[model]
+		num_layers = num_layers_table[model] if model in num_layers_table else 13
 		x = np.array(range(num_layers))
 		embedding_file = f'{model}/embedding_space_stats{file_suffix}.json'
 		data = json.load(open(embedding_file))
@@ -73,13 +72,12 @@ def visualize_embedding_space(models_to_process, file_suffix):
 def visualize_self_similarity(models_to_process, file_suffix):
 	"""Plot charts relating to self-similarity. Images are written to the img/ subfolder."""
 	plt.figure(figsize=(12,4))
-	icons = [ 'ro:', 'bo:', 'go:']
 
 	# plot the mean self-similarity but adjust by subtracting the avg similarity between random pairs of words
 	#for i, (model, num_layers) in enumerate([('ELMo', 3), ('BERT', 13), ('GPT2', 13)]):
 	# for i, (model, num_layers) in enumerate([('bert', 13), ('gpt2', 13)]):
 	for i, model in enumerate(models_to_process):
-		num_layers = num_layers_table[model]
+		num_layers = num_layers_table[model] if model in num_layers_table else 13
 		embedding_file = f'{model}/embedding_space_stats{file_suffix}.json'
 		embedding_stats = json.load(open(embedding_file))
 		self_similarity_file = f'{model}/self_similarity{file_suffix}.csv'
@@ -107,7 +105,7 @@ def visualize_self_similarity(models_to_process, file_suffix):
 	#for i, (model, num_layers) in enumerate([('ELMo', 3), ('BERT', 13), ('GPT2', 13)]):
 	# for i, (model, num_layers) in enumerate([('bert', 13), ('gpt2', 13)]):
 	for i, model in enumerate(models_to_process):
-		num_layers = num_layers_table[model]
+		num_layers = num_layers_table[model] if model in num_layers_table else 13
 		self_similarity_file = f'{model}/self_similarity{file_suffix}.csv'
 		self_similarity = pd.read_csv(self_similarity_file)
 		self_similarity['avg'] = self_similarity.mean(axis=1)
@@ -127,14 +125,13 @@ def visualize_variance_explained(models_to_process, file_suffix):
 	"""Plot chart for variance explained. Images are written to the img/ subfolder."""
 	bar_width = 0.2
 	plt.figure(figsize=(12,4))
-	icons = [ 'ro:', 'bo:', 'go:']
 
 	# plot the mean variance explained by first PC for occurrences of the same word in different sentences
 	# adjust the values by subtracting the variance explained for random sentence vectors
 	#for i, (model, num_layers) in enumerate([('ELMo', 3), ('BERT', 13), ('GPT2', 13)]):
 	# for i, (model, num_layers) in enumerate([('bert', 13), ('gpt2', 13)]):
 	for i, model in enumerate(models_to_process):
-		num_layers = num_layers_table[model]
+		num_layers = num_layers_table[model] if model in num_layers_table else 13
 		embedding_file = f'{model}/embedding_space_stats{file_suffix}.json'
 		embedding_stats = json.load(open(embedding_file))
 		data = pd.read_csv(f'{model}/variance_explained{file_suffix}.csv')
@@ -210,7 +207,7 @@ def evaluate(models_to_process, file_suffix):
 
     # paths to BERT and GPT2 embeddings
     for model in models_to_process:
-        num_layers = num_layers_table[model]
+        num_layers = num_layers_table[model] if model in num_layers_table else 13
         for i in range(1,num_layers):
             vector_paths.append(os.path.join(EMBEDDINGS_PATH, f'pcs/{model}{file_suffix}.pc.{i:02d}'))
 
@@ -273,7 +270,7 @@ def main():
                          help='common suffix to all data files')
     parser.add_argument('--models', default="t5,bert,gpt2",
                          help='comma separated list of models to process')
-    parser.add_argument('--processes', default="similarity,variance,embedding,evaluate",
+    parser.add_argument('--processes', default="similarity,embedding,evaluate",
                          help='comma separated list of what to process')
     args = parser.parse_args()
 

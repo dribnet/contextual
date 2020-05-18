@@ -49,9 +49,11 @@ class Vectorizer:
         except IndexError:
           print("Strange IndexError - skipping {}".format(sentence))
 
-class BertBaseCased(Vectorizer):
-  def __init__(self):
-    MODEL_NAME = 'bert-base-cased'
+class Bert(Vectorizer):
+  def __init__(self, MODEL_NAME=None):
+    if MODEL_NAME is None:
+      MODEL_NAME = 'bert-base-cased'
+    print("Setting up bert model {}".format(MODEL_NAME))
     self.tokenizer = transformers.AutoTokenizer.from_pretrained(MODEL_NAME, use_fast=True)
     config = transformers.BertConfig.from_pretrained(MODEL_NAME, output_hidden_states=True)
     self.model = transformers.BertModel.from_pretrained(MODEL_NAME, config=config)
@@ -90,8 +92,28 @@ class GPT2(Vectorizer):
     embeddings = embeddings.detach().numpy()
     return embeddings
 
+class Roberta(Vectorizer):
+  def __init__(self):
+    MODEL_NAME = "roberta-base"
+    print("Setting up Roberta model {}".format(MODEL_NAME))
+    self.tokenizer = transformers.AutoTokenizer.from_pretrained(MODEL_NAME, use_fast=True)
+    config = transformers.RobertaConfig.from_pretrained(MODEL_NAME, output_hidden_states=True)
+    self.model = transformers.RobertaModel.from_pretrained(MODEL_NAME, config=config)
+
+  def vectorize(self, sentence: str) -> numpy.ndarray:
+    result = self.tokenizer.encode_plus(sentence, return_token_type_ids=True, return_tensors="pt")
+    outputs = self.model(result.input_ids)
+    output_embeddings = outputs[2]
+    embeddings = torch.stack(output_embeddings, dim=0).squeeze()[:,:,:]
+    embeddings = embeddings.detach().numpy()
+    return embeddings
+
 class T5Base(Vectorizer):
-  def __init__(self, MODEL_NAME, sentence_prefix):
+  def __init__(self, MODEL_NAME=None, sentence_prefix=None):
+    if MODEL_NAME is None:
+      MODEL_NAME = 't5-base'
+    if sentence_prefix is None:
+      sentence_prefix = 'sst2 sentence: '
     self.tokenizer = transformers.AutoTokenizer.from_pretrained(MODEL_NAME, use_fast=True)
     config = T5Config.from_pretrained(MODEL_NAME, output_hidden_states=True)
     self.model = T5ForConditionalGeneration.from_pretrained(MODEL_NAME, config=config)
@@ -123,7 +145,11 @@ class T5Base(Vectorizer):
 def words_from_sentence(s):
   return re.findall(r"[\w']+", s)
 
+first_time = 0
+
 def get_index_word_pairs_from_tokens(tokens, tokenizer):
+  global first_time
+
   all_pairs = []
 
   # print(tokens)
@@ -131,7 +157,9 @@ def get_index_word_pairs_from_tokens(tokens, tokenizer):
   # TODO: remove pure digits
   words_in_sentence = words_from_sentence(tokenizer.decode(tokens))
   # words_in_sentence = words_from_sentence(tokenizer.decode(tokens))[1:-1]
-  # print(words_in_sentence)
+  if first_time < 1000:
+    print(words_in_sentence)
+    first_time = first_time + 1
   cur_target_word = 0
   cur_candate_token = 0
   for i in range(len(tokens)):
@@ -280,6 +308,8 @@ def main():
                          help='common suffix to all data files')
     parser.add_argument('--models', default="bert,gpt2,t5",
                          help='comma separated list of models to process')
+    parser.add_argument('--alias', default=None,
+                         help='one run model under a pseudonym')
     parser.add_argument('--input', default="inputs/sts.csv",
                          help='input file')
     parser.add_argument('--min-count', default=3, type=int,
@@ -288,7 +318,7 @@ def main():
                          help='lowercase all input while reading')
     parser.add_argument('--word-filter', default=None,
                          help='keep only sentences that match set of words in filter')
-    parser.add_argument('--t5-model', default='t5-base',
+    parser.add_argument('--model-name', default=None,
                          help='which t5 model to run')
     parser.add_argument('--t5-prefix', default='sst2 sentence: ',
                          help='which prefix (task) to run')
@@ -303,18 +333,34 @@ def main():
     input_file = args.input
 
     if "bert" in models_to_process:
-        newbert_index_file = 'bert/word2sent{}.json'.format(file_suffix)
-        newbert_data_file = os.path.join(EMBEDDINGS_PATH, 'bert{}.hdf5'.format(file_suffix))
+        if args.alias is None:
+          outname = "bert"
+        else:
+          outname = args.alias
 
-        newbert = BertBaseCased()
-        sentences = index_sentence(input_file, newbert_index_file, newbert.tokenizer, args.min_count, args.do_lower_case, args.word_filter)
-        newbert.make_hdf5_file(sentences, newbert_data_file)
+        if not os.path.exists(outname):
+            os.makedirs(outname)
+
+        index_file = '{}/word2sent{}.json'.format(outname, file_suffix)
+        data_file = os.path.join(EMBEDDINGS_PATH, '{}{}.hdf5'.format(outname, file_suffix))
+
+        model = Bert(args.model_name)
+        sentences = index_sentence(input_file, index_file, model.tokenizer, args.min_count, args.do_lower_case, args.word_filter)
+        model.make_hdf5_file(sentences, data_file)
+
+    if "roberta" in models_to_process:
+        index_file = 'roberta/word2sent{}.json'.format(file_suffix)
+        data_file = os.path.join(EMBEDDINGS_PATH, 'roberta{}.hdf5'.format(file_suffix))
+
+        model = Roberta()
+        sentences = index_sentence(input_file, index_file, model.tokenizer, args.min_count, args.do_lower_case, args.word_filter)
+        model.make_hdf5_file(sentences, data_file)
 
     if "t5" in models_to_process:
         t5_index_file = 't5/word2sent{}.json'.format(file_suffix)
         t5_data_file = os.path.join(EMBEDDINGS_PATH, 't5{}.hdf5'.format(file_suffix))
 
-        t5 = T5Base(args.t5_model, args.t5_prefix)
+        t5 = T5Base(args.model_name, args.t5_prefix)
         sentences = index_sentence(input_file, t5_index_file, t5.tokenizer, args.min_count, args.do_lower_case, args.word_filter, t5.sentence_prefix)
         t5.make_hdf5_file(sentences, t5_data_file)
 
