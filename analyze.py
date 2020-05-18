@@ -243,34 +243,12 @@ def explore_embedding_space(
 
 # where the contextualized embeddings are saved (in HDF5 format)
 EMBEDDINGS_PATH = "./contextual_embeddings"
-
-if __name__ == "__old_main__":
-	#for model in ["elmo", "bert", "gpt2"]:
-	for model in ["bert", "gpt2"]:
-	# for model in ["gpt2"]:
-		print(f"Analyzing {model} ...")
-
-		word2sent_indexer = json.load(open(f'{model}/word2sent.json', 'r'))
-		#scores = json.load(open(f'{model}/scores.json', 'r'))
-		EMBEDDINGS_FULL_PATH = os.path.join(EMBEDDINGS_PATH, f'{model}.hdf5')
-
-		print(f"Analyzing word similarity across sentences ...")
-		calculate_word_similarity_across_sentences(EMBEDDINGS_FULL_PATH, word2sent_indexer, 
-			f'{model}/self_similarity.csv')
-
-		print(f"Analyzing variance explained by first principal component ...")
-		variance_explained_by_pc(EMBEDDINGS_FULL_PATH, word2sent_indexer,
-			f'{model}/variance_explained.csv', os.path.join(EMBEDDINGS_PATH, f'pcs/{model}.pc.'))
-
-		print(f"Exploring embedding space ...")
-		explore_embedding_space(EMBEDDINGS_FULL_PATH, f'{model}/embedding_space_stats.json')
-
 	
 def main():
     parser = argparse.ArgumentParser(description="pre process csv data file into hdf5")
     parser.add_argument('--suffix', default=None,
                          help='common suffix to all data files')
-    parser.add_argument('--models', default="bert,gpt2",
+    parser.add_argument('--models', default="t5,bert,gpt2",
                          help='comma separated list of models to process')
     parser.add_argument('--processes', default="similarity,variance,embedding",
                          help='comma separated list of what to process')

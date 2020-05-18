@@ -14,15 +14,12 @@ import numpy
 import torch
 import h5py
 import pytorch_pretrained
-from pytorch_pretrained import GPT2Tokenizer, GPT2Model, GPT2LMHeadModel
 import transformers
-# from allennlp.commands.elmo import ElmoEmbedder
-# from allennlp.data.tokenizers.token import Token
-# from allennlp.common.tqdm import Tqdm
 import tqdm
 import re
 
 from transformers import T5Tokenizer, T5ForConditionalGeneration, T5Config
+from transformers import GPT2Model, GPT2Config, GPT2Tokenizer
 from transformers import AutoTokenizer
 
 class Vectorizer:
@@ -52,59 +49,12 @@ class Vectorizer:
         except IndexError:
           print("Strange IndexError - skipping {}".format(sentence))
 
-class ELMo(Vectorizer):
+class BertBaseCased(Vectorizer):
   def __init__(self):
-    self.elmo = ElmoEmbedder()
-
-  def vectorize(self, sentence: str) -> numpy.ndarray:
-    """
-    Return a tensor representation of the sentence of size (3 layers, num tokens, 1024 dim).
-    """
-    # tokenizer's tokens must be converted to string tokens first
-    tokens = list(map(str, spacy_tokenizer(sentence)))  
-    embeddings = self.elmo.embed_sentence(tokens)
-    return embeddings   
-
-
-class OldBertBaseCased(Vectorizer):
-  def __init__(self):
-    self.tokenizer = pytorch_pretrained.BertTokenizer.from_pretrained('bert-base-cased', do_lower_case=False)
-    self.model = pytorch_pretrained.BertModel.from_pretrained('bert-base-cased')
-    self.model.eval()
-
-  def vectorize(self, sentence: str) -> numpy.ndarray:
-    """
-    Return a tensor representation of the sentence of size (13 layers, num tokens, 768 dim).
-    Even though there are only 12 layers in GPT2, we include the input embeddings as the first
-    layer (for a fairer comparison to ELMo).
-    """
-    # add CLS and SEP to mark the start and end
-    tokens = ['[CLS]'] + self.tokenizer.tokenize(sentence) + ['[SEP]']
-    # tokenize sentence with custom BERT tokenizer
-    token_ids = self.tokenizer.convert_tokens_to_ids(tokens) 
-    # segment ids are all the same (since it's all one sentence)
-    segment_ids = numpy.zeros_like(token_ids)
-
-    tokens_tensor = torch.tensor([token_ids])
-    segments_tensor = torch.tensor([segment_ids])
-
-    with torch.no_grad():
-      embeddings, _, input_embeddings = self.model(tokens_tensor, segments_tensor)
-
-    # exclude embeddings for CLS and SEP; then, convert to numpy
-    embeddings = torch.stack([input_embeddings] + embeddings, dim=0).squeeze()[:,1:-1,:]
-    embeddings = embeddings.detach().numpy()
-    # print("OLD", embeddings.shape)            
-
-    return embeddings
-
-
-class NewBertBaseCased(Vectorizer):
-  def __init__(self):
-    # self.tokenizer = transformers.BertTokenizer.from_pretrained('bert-base-cased')
-    self.tokenizer = transformers.AutoTokenizer.from_pretrained('bert-base-cased', use_fast=True)
-    config = transformers.BertConfig.from_pretrained("bert-base-cased", output_hidden_states=True)
-    self.model = transformers.BertModel.from_pretrained("bert-base-cased", config=config)
+    MODEL_NAME = 'bert-base-cased'
+    self.tokenizer = transformers.AutoTokenizer.from_pretrained(MODEL_NAME, use_fast=True)
+    config = transformers.BertConfig.from_pretrained(MODEL_NAME, output_hidden_states=True)
+    self.model = transformers.BertModel.from_pretrained(MODEL_NAME, config=config)
 
   def vectorize(self, sentence: str) -> numpy.ndarray:
     """
@@ -121,6 +71,23 @@ class NewBertBaseCased(Vectorizer):
     embeddings = torch.stack(output_embeddings, dim=0).squeeze()[:,:,:]
     embeddings = embeddings.detach().numpy()
     # print("NEW", embeddings.shape)            
+    return embeddings
+
+class GPT2(Vectorizer):
+  def __init__(self):
+    MODEL_NAME = "gpt2"
+    print("Setting up GPT model {}".format(MODEL_NAME))
+    self.tokenizer = transformers.AutoTokenizer.from_pretrained(MODEL_NAME, use_fast=True)
+    self.tokenizer.pad_token = self.tokenizer.eos_token
+    config = GPT2Config.from_pretrained(MODEL_NAME, output_hidden_states=True)
+    self.model = GPT2Model.from_pretrained(MODEL_NAME, config=config)
+
+  def vectorize(self, sentence: str) -> numpy.ndarray:
+    result = self.tokenizer.encode_plus(sentence, return_token_type_ids=True, return_tensors="pt")
+    outputs = self.model(result.input_ids)
+    output_embeddings = outputs[2]
+    embeddings = torch.stack(output_embeddings, dim=0).squeeze()[:,:,:]
+    embeddings = embeddings.detach().numpy()
     return embeddings
 
 class T5Base(Vectorizer):
@@ -152,78 +119,6 @@ class T5Base(Vectorizer):
     embeddings = embeddings.detach().numpy()
     # print("NEW", embeddings.shape)            
     return embeddings
-
-
-class GPT2(Vectorizer):
-  def __init__(self):
-    self.tokenizer = GPT2Tokenizer.from_pretrained('gpt2')
-    self.model = GPT2Model.from_pretrained('gpt2')
-    self.model.eval()
-
-  def vectorize(self, sentence: str) -> numpy.ndarray:
-    """
-    Return a tensor representation of the sentence of size (13 layers, num tokens, 768 dim).
-    Even though there are only 12 layers in GPT2, we include the input embeddings (with 
-    positional information).
-
-    For an apples-to-apples comparison with ELMo, we use the spaCy tokenizer at first -- to 
-    avoid breaking up a word into subwords if possible -- and then fall back to using the GPT2 
-    tokenizer if needed.
-    """
-    # use spacy tokenizer at first
-    tokens_tentative = list(map(str, spacy_tokenizer(sentence)))
-    token_ids_tentative = self.tokenizer.convert_tokens_to_ids(tokens_tentative)
-
-    tokens = []
-    token_ids = []
-
-    for i, tid in enumerate(token_ids_tentative):
-      # if not "unknown token" ID = 0, proceed
-      if tid != 0:
-        tokens.append(tokens_tentative[i])
-        token_ids.append(tid)
-      else:
-        # otherwise, try to find a non-zero token ID by preprending the special character
-        special_char_tid = self.tokenizer.convert_tokens_to_ids('Ġ' + tokens_tentative[i])
-        # otherwise, break up the word using the given GPT2 tokenizer
-        subtoken_tids = self.tokenizer.convert_tokens_to_ids(self.tokenizer.tokenize(tokens_tentative[i]))
-
-        if special_char_tid != 0:
-          tokens.append('Ġ' + tokens_tentative[i])
-          token_ids.append(special_char_tid)
-        else:
-          tokens.extend(self.tokenizer.tokenize(tokens_tentative[i]))
-          token_ids.extend(subtoken_tids)
-
-    tokens_tensor = torch.tensor([token_ids])
-
-    # predict hidden states features for each layer
-    with torch.no_grad():
-        _, _, embeddings = self.model(tokens_tensor)
-
-    embeddings = torch.stack(embeddings, dim=0).squeeze().detach().numpy()              
-    
-    return embeddings  
-
-
-def index_tokens_old(tokens: List[str], sent_index: int, indexer: Dict[str, List[Tuple[int, int]]]) -> None:
-  """
-  Given string tokens that all appear in the same sentence, append tuple (sentence index, index of
-  word in sentence) to the list of values each token is mapped to in indexer. Exclude tokens that
-  are punctuation.
-
-  Args:
-    tokens: string tokens that all appear in the same sentence
-    sent_index: index of sentence in the data
-    indexer: map of string tokens to a list of unique tuples, one for each sentence the token
-      appears in; each tuple is of the form (sentence index, index of token in that sentence)
-  """
-  for token_index, token in enumerate(tokens):
-    if not nlp.vocab[token].is_punct:
-      if str(token) not in indexer:
-        indexer[str(token)] = []
-
-      indexer[str(token)].append((sent_index, token_index))
 
 def words_from_sentence(s):
   return re.findall(r"[\w']+", s)
@@ -383,7 +278,7 @@ def main():
     parser = argparse.ArgumentParser(description="pre process csv data file into hdf5")
     parser.add_argument('--suffix', default=None,
                          help='common suffix to all data files')
-    parser.add_argument('--models', default="bert,gpt2",
+    parser.add_argument('--models', default="bert,gpt2,t5",
                          help='comma separated list of models to process')
     parser.add_argument('--input', default="inputs/sts.csv",
                          help='input file')
@@ -411,7 +306,7 @@ def main():
         newbert_index_file = 'bert/word2sent{}.json'.format(file_suffix)
         newbert_data_file = os.path.join(EMBEDDINGS_PATH, 'bert{}.hdf5'.format(file_suffix))
 
-        newbert = NewBertBaseCased()
+        newbert = BertBaseCased()
         sentences = index_sentence(input_file, newbert_index_file, newbert.tokenizer, args.min_count, args.do_lower_case, args.word_filter)
         newbert.make_hdf5_file(sentences, newbert_data_file)
 
@@ -423,20 +318,12 @@ def main():
         sentences = index_sentence(input_file, t5_index_file, t5.tokenizer, args.min_count, args.do_lower_case, args.word_filter, t5.sentence_prefix)
         t5.make_hdf5_file(sentences, t5_data_file)
 
-    if "oldbert" in models_to_process:
-        oldbert_index_file = 'oldbert/word2sent{}.json'.format(file_suffix)
-        oldbert_data_file = os.path.join(EMBEDDINGS_PATH, 'oldbert{}.hdf5'.format(file_suffix))
-
-        oldbert = OldBertBaseCased()
-        sentences = index_sentence(input_file, oldbert_index_file, oldbert.tokenizer.tokenize, args.min_count, args.do_lower_case, args.word_filter)
-        oldbert.make_hdf5_file(sentences, oldbert_data_file)
-
     if "gpt2" in models_to_process:
         gpt2_index_file = 'gpt2/word2sent{}.json'.format(file_suffix)
         gpt2_data_file = os.path.join(EMBEDDINGS_PATH, 'gpt2{}.hdf5'.format(file_suffix))
 
         gpt2 = GPT2()
-        sentences = index_sentence(input_file, gpt2_index_file, lambda s: list(map(str, spacy_tokenizer(s))), args.min_count, args.do_lower_case, args.word_filter)
+        sentences = index_sentence(input_file, gpt2_index_file, gpt2.tokenizer, args.min_count, args.do_lower_case, args.word_filter)
         gpt2.make_hdf5_file(sentences, gpt2_data_file)
 
 if __name__ == '__main__':

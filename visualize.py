@@ -16,7 +16,8 @@ matplotlib.rc('axes', edgecolor='k')
 # where the contextualized embeddings are saved (in HDF5 format)
 EMBEDDINGS_PATH = "./contextual_embeddings"
 
-num_layers_table = {'t5': 25, 'bert': 13, 'oldbert': 13, 'gpt2': 13, 'ELMo': 3}
+# t5-large num_layers_table = {'t5': 25, 'bert': 13, 'oldbert': 13, 'gpt2': 13, 'ELMo': 3}
+num_layers_table = {'t5': 13, 'bert': 13, 'gpt2': 13}
 
 def visualize_embedding_space(models_to_process, file_suffix):
 	"""Plot the baseline charts in the paper. Images are written to the img/ subfolder."""
@@ -270,7 +271,7 @@ def main():
     parser = argparse.ArgumentParser(description="pre process csv data file into hdf5")
     parser.add_argument('--suffix', default=None,
                          help='common suffix to all data files')
-    parser.add_argument('--models', default="bert,gpt2",
+    parser.add_argument('--models', default="t5,bert,gpt2",
                          help='comma separated list of models to process')
     parser.add_argument('--processes', default="similarity,variance,embedding,evaluate",
                          help='comma separated list of what to process')
