@@ -157,7 +157,7 @@ def get_index_word_pairs_from_tokens(tokens, tokenizer):
   # TODO: remove pure digits
   words_in_sentence = words_from_sentence(tokenizer.decode(tokens))
   # words_in_sentence = words_from_sentence(tokenizer.decode(tokens))[1:-1]
-  if first_time < 1000:
+  if first_time < 10:
     print(words_in_sentence)
     first_time = first_time + 1
   cur_target_word = 0
@@ -240,52 +240,87 @@ def index_sentence(data_fn: str, index_fn: str, tokenizer, min_count=5, do_lower
 
   print("Indexing {} -> {} with min_count {} and filter {}".format(data_fn, index_fn, min_count, len(word_filter_set)))
   minimum_word_count = 3
+  maximum_word_count = 60
   if sentence_prefix is not None:
     print("Using sentence prefix: [{}]".format(sentence_prefix))
     minimum_word_count = minimum_word_count + len(words_from_sentence(sentence_prefix))
 
-  with open(data_fn) as csvfile:
-    csvreader = csv.DictReader(csvfile, quotechar='"', delimiter='\t')
-
-    duplicates_removed = 0
-    sentences_filtered = 0
-    for line in csvreader:
-      # only consider scored sentence pairs
-      if line['Score'] == '':  
-        continue
-
-      # handle case where \t is between incomplete quotes (causes sents to be treated as one)
-      if line['Sent2'] is None:
-        line['Sent1'], line['Sent2'] = line['Sent1'].split('\t')[:2]
-
-      for sentence_candidate in [line['Sent1'], line['Sent2']]:
-        if do_lower_case:
-          sentence_candidate = sentence_candidate.lower()
-        if sentence_prefix is not None:
-          sentence_candidate = f"{sentence_prefix}{sentence_candidate}"
-        if sentence_candidate in sentence_set:
-          # print("ignoring duplicate sentence: {}".format(sentence_candidate))
-          duplicates_removed += 1
-        else:
-          # tokens = tokenizer.tokenize(sentence_candidate)
-          words = words_from_sentence(sentence_candidate)
-          # print(sentence_candidate, words)
-          results = tokenizer.encode_plus(sentence_candidate, return_token_type_ids=True, return_tensors="pt")
-          token_ids = results.input_ids[0].numpy()
-          # print("checking", sentence_candidate, tokens)
-          downcased_tokens = [w.lower() for w in words]
-          if len(word_filter_set) > 0 and set(downcased_tokens).isdisjoint(word_filter_set):
-            sentences_filtered += 1
-            # print("skipping", tokens)
-          elif len(words) < minimum_word_count:
-            sentences_filtered += 1
-            print("too short: {} -> {}".format(sentence_candidate, words))
+  duplicates_removed = 0
+  sentences_filtered = 0
+  if data_fn.endswith(".txt"):
+    with open(data_fn) as fp:
+       for cnt, line in enumerate(fp):
+          sentence_candidate = line.strip()
+          # print("Line {}: {}".format(cnt, line))
+          if sentence_prefix is not None:
+            sentence_candidate = f"{sentence_prefix}{sentence_candidate}"
+          if sentence_candidate in sentence_set:
+            # print("ignoring duplicate sentence: {}".format(sentence_candidate))
+            duplicates_removed += 1
           else:
-            # print("found", set(downcased_tokens).intersection(word_filter_set))
-            index_tokens(token_ids, tokenizer, sentence_index, word2sent_indexer)
-            sentences.append(sentence_candidate)
-            sentence_set.add(sentence_candidate)
-            sentence_index += 1
+            # tokens = tokenizer.tokenize(sentence_candidate)
+            words = words_from_sentence(sentence_candidate)
+            # print(sentence_candidate, words)
+            results = tokenizer.encode_plus(sentence_candidate, return_token_type_ids=True, return_tensors="pt")
+            token_ids = results.input_ids[0].numpy()
+            # print("checking", sentence_candidate, tokens)
+            downcased_tokens = [w.lower() for w in words]
+            if len(word_filter_set) > 0 and set(downcased_tokens).isdisjoint(word_filter_set):
+              sentences_filtered += 1
+              # print("skipping", tokens)
+            elif len(words) < minimum_word_count:
+              sentences_filtered += 1
+              print("too short: {} -> {}".format(sentence_candidate, words))
+            elif len(words) > maximum_word_count:
+              sentences_filtered += 1
+              print("too long: {} -> {}".format(sentence_candidate, words))
+            else:
+              # print("found", set(downcased_tokens).intersection(word_filter_set))
+              index_tokens(token_ids, tokenizer, sentence_index, word2sent_indexer)
+              sentences.append(sentence_candidate)
+              sentence_set.add(sentence_candidate)
+              sentence_index += 1
+  else:
+    with open(data_fn) as csvfile:
+      csvreader = csv.DictReader(csvfile, quotechar='"', delimiter='\t')
+
+      for line in csvreader:
+        # only consider scored sentence pairs
+        if line['Score'] == '':  
+          continue
+
+        # handle case where \t is between incomplete quotes (causes sents to be treated as one)
+        if line['Sent2'] is None:
+          line['Sent1'], line['Sent2'] = line['Sent1'].split('\t')[:2]
+
+        for sentence_candidate in [line['Sent1'], line['Sent2']]:
+          if do_lower_case:
+            sentence_candidate = sentence_candidate.lower()
+          if sentence_prefix is not None:
+            sentence_candidate = f"{sentence_prefix}{sentence_candidate}"
+          if sentence_candidate in sentence_set:
+            # print("ignoring duplicate sentence: {}".format(sentence_candidate))
+            duplicates_removed += 1
+          else:
+            # tokens = tokenizer.tokenize(sentence_candidate)
+            words = words_from_sentence(sentence_candidate)
+            # print(sentence_candidate, words)
+            results = tokenizer.encode_plus(sentence_candidate, return_token_type_ids=True, return_tensors="pt")
+            token_ids = results.input_ids[0].numpy()
+            # print("checking", sentence_candidate, tokens)
+            downcased_tokens = [w.lower() for w in words]
+            if len(word_filter_set) > 0 and set(downcased_tokens).isdisjoint(word_filter_set):
+              sentences_filtered += 1
+              # print("skipping", tokens)
+            elif len(words) < minimum_word_count:
+              sentences_filtered += 1
+              print("too short: {} -> {}".format(sentence_candidate, words))
+            else:
+              # print("found", set(downcased_tokens).intersection(word_filter_set))
+              index_tokens(token_ids, tokenizer, sentence_index, word2sent_indexer)
+              sentences.append(sentence_candidate)
+              sentence_set.add(sentence_candidate)
+              sentence_index += 1
 
   print("Sentence summary: found {} unique sentences ({} duplicates removed, {} filtered, lower_case={})".format(sentence_index, duplicates_removed, sentences_filtered, do_lower_case))
   # remove words that appear less than min_count times
