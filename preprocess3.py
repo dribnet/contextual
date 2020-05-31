@@ -178,7 +178,7 @@ def get_index_word_pairs_from_tokens(tokens, tokenizer):
         cur_candate_token = j + 1
   return all_pairs
 
-def index_tokens(tokens: List[str], tokenizer, sent_index: int, indexer: Dict[str, List[Tuple[int, int]]]) -> None:
+def index_tokens(tokens: List[str], tokenizer, sent_index: int, indexer: Dict[str, List[Tuple[int, int]]], magic_word: str) -> None:
   """
   Given string tokens that all appear in the same sentence, append tuple (sentence index, index of
   word in sentence) to the list of values each token is mapped to in indexer. Exclude tokens that 
@@ -192,13 +192,14 @@ def index_tokens(tokens: List[str], tokenizer, sent_index: int, indexer: Dict[st
   """
   word_pairs = get_index_word_pairs_from_tokens(tokens, tokenizer)
   for word, token_index in word_pairs:
-    if word not in indexer:
-      indexer[word] = []
+    if magic_word is None or magic_word == word:
+      if word not in indexer:
+        indexer[word] = []
 
-    indexer[word].append((sent_index, token_index))
+      indexer[word].append((sent_index, token_index))
 
 
-def index_sentence(data_fn: str, index_fn: str, tokenizer, min_count=5, do_lower_case=False, word_filter=None, sentence_prefix=None) -> List[str]:
+def index_sentence(data_fn: str, index_fn: str, tokenizer, min_count=5, magic_word=None, word_filter=None, sentence_prefix=None) -> List[str]:
   """
   Given a data file data_fn with the format of sts.csv, index the words by sentence in the order
   they appear in data_fn. 
@@ -255,7 +256,7 @@ def index_sentence(data_fn: str, index_fn: str, tokenizer, min_count=5, do_lower
           if sentence_prefix is not None:
             sentence_candidate = f"{sentence_prefix}{sentence_candidate}"
           if sentence_candidate in sentence_set:
-            # print("ignoring duplicate sentence: {}".format(sentence_candidate))
+            print("ignoring duplicate sentence: {}".format(sentence_candidate))
             duplicates_removed += 1
           else:
             # tokens = tokenizer.tokenize(sentence_candidate)
@@ -276,7 +277,7 @@ def index_sentence(data_fn: str, index_fn: str, tokenizer, min_count=5, do_lower
               print("too long: {} -> {}".format(sentence_candidate, words))
             else:
               # print("found", set(downcased_tokens).intersection(word_filter_set))
-              index_tokens(token_ids, tokenizer, sentence_index, word2sent_indexer)
+              index_tokens(token_ids, tokenizer, sentence_index, word2sent_indexer, magic_word)
               sentences.append(sentence_candidate)
               sentence_set.add(sentence_candidate)
               sentence_index += 1
@@ -294,8 +295,6 @@ def index_sentence(data_fn: str, index_fn: str, tokenizer, min_count=5, do_lower
           line['Sent1'], line['Sent2'] = line['Sent1'].split('\t')[:2]
 
         for sentence_candidate in [line['Sent1'], line['Sent2']]:
-          if do_lower_case:
-            sentence_candidate = sentence_candidate.lower()
           if sentence_prefix is not None:
             sentence_candidate = f"{sentence_prefix}{sentence_candidate}"
           if sentence_candidate in sentence_set:
@@ -317,12 +316,12 @@ def index_sentence(data_fn: str, index_fn: str, tokenizer, min_count=5, do_lower
               print("too short: {} -> {}".format(sentence_candidate, words))
             else:
               # print("found", set(downcased_tokens).intersection(word_filter_set))
-              index_tokens(token_ids, tokenizer, sentence_index, word2sent_indexer)
+              index_tokens(token_ids, tokenizer, sentence_index, word2sent_indexer, magic_word)
               sentences.append(sentence_candidate)
               sentence_set.add(sentence_candidate)
               sentence_index += 1
 
-  print("Sentence summary: found {} unique sentences ({} duplicates removed, {} filtered, lower_case={})".format(sentence_index, duplicates_removed, sentences_filtered, do_lower_case))
+  print("Sentence summary: found {} unique sentences ({} duplicates removed, {} filtered, magic_word={})".format(sentence_index, duplicates_removed, sentences_filtered, magic_word))
   # remove words that appear less than min_count times
   infrequent_words = list(filter(lambda w: len(word2sent_indexer[w]) < min_count, word2sent_indexer.keys()))
   
@@ -347,6 +346,8 @@ def main():
                          help='one run model under a pseudonym')
     parser.add_argument('--input', default="inputs/sts.csv",
                          help='input file')
+    parser.add_argument('--magic-word', default=None,
+                         help='only output vectors for the magic word')
     parser.add_argument('--min-count', default=3, type=int,
                          help='minimum count threshold. less than this is cut')
     parser.add_argument('--do-lower-case', default=False, type=bool,
@@ -380,7 +381,7 @@ def main():
         data_file = os.path.join(EMBEDDINGS_PATH, '{}{}.hdf5'.format(outname, file_suffix))
 
         model = Bert(args.model_name)
-        sentences = index_sentence(input_file, index_file, model.tokenizer, args.min_count, args.do_lower_case, args.word_filter)
+        sentences = index_sentence(input_file, index_file, model.tokenizer, args.min_count, args.magic_word, args.word_filter)
         model.make_hdf5_file(sentences, data_file)
 
     if "roberta" in models_to_process:
@@ -388,7 +389,7 @@ def main():
         data_file = os.path.join(EMBEDDINGS_PATH, 'roberta{}.hdf5'.format(file_suffix))
 
         model = Roberta()
-        sentences = index_sentence(input_file, index_file, model.tokenizer, args.min_count, args.do_lower_case, args.word_filter)
+        sentences = index_sentence(input_file, index_file, model.tokenizer, args.min_count, args.magic_word, args.word_filter)
         model.make_hdf5_file(sentences, data_file)
 
     if "t5" in models_to_process:
@@ -396,7 +397,7 @@ def main():
         t5_data_file = os.path.join(EMBEDDINGS_PATH, 't5{}.hdf5'.format(file_suffix))
 
         t5 = T5Base(args.model_name, args.t5_prefix)
-        sentences = index_sentence(input_file, t5_index_file, t5.tokenizer, args.min_count, args.do_lower_case, args.word_filter, t5.sentence_prefix)
+        sentences = index_sentence(input_file, t5_index_file, t5.tokenizer, args.min_count, args.magic_word, args.word_filter, t5.sentence_prefix)
         t5.make_hdf5_file(sentences, t5_data_file)
 
     if "gpt2" in models_to_process:
@@ -404,7 +405,7 @@ def main():
         gpt2_data_file = os.path.join(EMBEDDINGS_PATH, 'gpt2{}.hdf5'.format(file_suffix))
 
         gpt2 = GPT2()
-        sentences = index_sentence(input_file, gpt2_index_file, gpt2.tokenizer, args.min_count, args.do_lower_case, args.word_filter)
+        sentences = index_sentence(input_file, gpt2_index_file, gpt2.tokenizer, args.min_count, args.magic_word, args.word_filter)
         gpt2.make_hdf5_file(sentences, gpt2_data_file)
 
 if __name__ == '__main__':
