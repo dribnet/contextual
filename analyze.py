@@ -77,6 +77,38 @@ def calculate_word_similarity_across_sentences(
 
 		writer.writerow(similarity_by_layer)
 
+def spew_word_vectors(
+	embedding_fn: str, 
+	word2sent_indexer: Dict[str, List[Tuple[int, int]]],
+	out_fn : str,
+	num_samples=1000) -> None:
+	"""
+	Each word in word2sent_indexer appears in multiple sentences. Thus each occurrence of the word 
+	will have a unique embedding at each layer. For each layer, calculate the average cosine 
+	similarity between embeddings of the same word across its different occurrences. This captures 
+	how sentence-specific each word representation is at each layer.
+
+	Create a table of size (#words x #layers) and write it to out_fn.
+	"""
+	f = h5py.File(embedding_fn, 'r')
+	num_layers = f["0"].shape[0]
+
+	# write statistics to csv file: one row per word, one column per layer
+	writer = csv.writer(open(out_fn, 'w'), delimiter='\t')
+
+	for word in tqdm.tqdm(word2sent_indexer):
+		similarity_by_layer = { 'word' : word }
+
+		# list of tuples (sentence index, index of word in sentence) for word occurrences
+		occurrences = word2sent_indexer[word]
+
+		# calculate statistic for each layer using sampled data
+		for layer in range(0,1):
+		# for layer in range(num_layers):
+			for sent_index, word_in_sent_index in occurrences:
+				embedding = f[str(sent_index)][:, word_in_sent_index].flatten()
+				writer.writerow(embedding)
+
 def variance_explained_by_pc(
 	embedding_fn: str, 
 	word2sent_indexer: Dict[str, List[Tuple[int, int]]],
@@ -245,7 +277,7 @@ def explore_embedding_space(
 EMBEDDINGS_PATH = "./contextual_embeddings"
 	
 def main():
-    parser = argparse.ArgumentParser(description="pre process csv data file into hdf5")
+    parser = argparse.ArgumentParser(description="process files into other files")
     parser.add_argument('--suffix', default=None,
                          help='common suffix to all data files')
     parser.add_argument('--models', default="t5,bert,gpt2",
@@ -273,6 +305,11 @@ def main():
             print(f"Analyzing word similarity across sentences ...")
             calculate_word_similarity_across_sentences(EMBEDDINGS_FULL_PATH, word2sent_indexer,
                 f'{model}/self_similarity{file_suffix}.csv')
+
+        if "vectors" in processes_to_run:
+            print(f"Spewing vectors ...")
+            spew_word_vectors(EMBEDDINGS_FULL_PATH, word2sent_indexer,
+                f'{model}/vectors{file_suffix}.tsv')
 
         if "variance" in processes_to_run:
             print(f"Analyzing variance explained by first principal component ...")
