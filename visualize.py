@@ -265,7 +265,7 @@ columns = ['SimLex999','MEN','WS353','RW','Google','MSR','SemEval2012_2','BLESS'
 # columns = ['Model','SimLex999','MEN','WS353','RW','Google','MSR','SemEval2012_2','BLESS','AP','Battig','ESSLI_1a','ESSLI_2b','ESSLI_2c','MTurk','RG65','TR9856','WS353R','WS353S']
 
 def main():
-    parser = argparse.ArgumentParser(description="pre process csv data file into hdf5")
+    parser = argparse.ArgumentParser(description="process results")
     parser.add_argument('--suffix', default=None,
                          help='common suffix to all data files')
     parser.add_argument('--models', default="t5,bert,gpt2",
